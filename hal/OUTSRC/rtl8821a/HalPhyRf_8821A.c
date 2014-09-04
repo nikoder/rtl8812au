@@ -59,7 +59,7 @@ void setIqkMatrix_8821A(
 			IqkResult_Y = IqkResult_Y | 0xFFFFFC00;
 		ele_C = ((IqkResult_Y * ele_D)>>8)&0x000003FF;
 
-		if (RFPath == ODM_RF_PATH_A)
+		//if (RFPath == ODM_RF_PATH_A)
 		switch (RFPath)
 		{
 		case ODM_RF_PATH_A:
@@ -154,31 +154,43 @@ ODM_TxPwrTrackSetPwr8821A(
 
 	u1Byte			PwrTrackingLimit = 26; //+1.0dB
 	u1Byte			TxRate = 0xFF;
-	s1Byte			Final_OFDM_Swing_Index = 0; 
-	s1Byte			Final_CCK_Swing_Index = 0; 
+	u1Byte			Final_OFDM_Swing_Index = 0; 
+	u1Byte			Final_CCK_Swing_Index = 0; 
 	u1Byte			i = 0;
 	u4Byte			finalBbSwingIdx[1];
 
 
-#if 0 //gtemp
-#if (MP_DRIVER==1)	
-	//PMPT_CONTEXT			pMptCtx = &(Adapter->MptCtx);
-	PMPT_CONTEXT			pMptCtx = &Adapter->mppriv.MptCtx;
-	TxRate = MptToMgntRate(pMptCtx->MptRateIndex);
-#else
-	PMGNT_INFO      		pMgntInfo = &(Adapter->MgntInfo);
-
-	if(!pMgntInfo->ForcedDataRate) //auto rate
+#if (MP_DRIVER==1)
+	if ( *(pDM_Odm->mp_mode) == 1)
 	{
-		if(pDM_Odm->TxRate != 0xFF)
-			TxRate = HwRateToMRate8812(pDM_Odm->TxRate); 
+#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE ))
+	#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
+		PMPT_CONTEXT		pMptCtx = &(Adapter->MptCtx);
+	#elif (DM_ODM_SUPPORT_TYPE & (ODM_CE))
+		PMPT_CONTEXT		pMptCtx = &(Adapter->mppriv.MptCtx);
+	#endif
+		TxRate = MptToMgntRate(pMptCtx->MptRateIndex);
+#endif
 	}
-	else //force rate
+	else
+#endif
 	{
-		TxRate = (u1Byte) pMgntInfo->ForcedDataRate;
+		u2Byte	rate	 = *(pDM_Odm->pForcedDataRate);
+	
+		if(!rate) //auto rate
+		{
+			if(pDM_Odm->TxRate != 0xFF)
+				#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
+				TxRate = Adapter->HalFunc.GetHwRateFromMRateHandler(pDM_Odm->TxRate);
+				#elif (DM_ODM_SUPPORT_TYPE & (ODM_CE))
+				TxRate = HwRateToMRate(pDM_Odm->TxRate);
+				#endif
+		}
+		else //force rate
+		{
+			TxRate = (u1Byte)rate;
+		}
 	}
-#endif
-#endif
 
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("===>ODM_TxPwrTrackSetPwr8821A\n"));
 
@@ -189,30 +201,32 @@ ODM_TxPwrTrackSetPwr8821A(
 			PwrTrackingLimit = 32; //+4dB
 		//2 OFDM
 		else if((TxRate >= MGN_6M)&&(TxRate <= MGN_48M))
-			PwrTrackingLimit = 32; //+4dB
-		else if(TxRate == MGN_54M)
 			PwrTrackingLimit = 30; //+3dB
+		else if(TxRate == MGN_54M)
+			PwrTrackingLimit = 28; //+2dB
 		//2 HT
 		else if((TxRate >= MGN_MCS0)&&(TxRate <= MGN_MCS2)) //QPSK/BPSK
 			PwrTrackingLimit = 34; //+5dB
 		else if((TxRate >= MGN_MCS3)&&(TxRate <= MGN_MCS4)) //16QAM
-			PwrTrackingLimit = 32; //+4dB
-		else if((TxRate >= MGN_MCS5)&&(TxRate <= MGN_MCS7)) //64QAM
 			PwrTrackingLimit = 30; //+3dB
+		else if((TxRate >= MGN_MCS5)&&(TxRate <= MGN_MCS7)) //64QAM
+			PwrTrackingLimit = 28; //+2dB
+			
 		//2 VHT
 		else if((TxRate >= MGN_VHT1SS_MCS0)&&(TxRate <= MGN_VHT1SS_MCS2)) //QPSK/BPSK
 			PwrTrackingLimit = 34; //+5dB
 		else if((TxRate >= MGN_VHT1SS_MCS3)&&(TxRate <= MGN_VHT1SS_MCS4)) //16QAM
-			PwrTrackingLimit = 32; //+4dB
-		else if((TxRate >= MGN_VHT1SS_MCS5)&&(TxRate <= MGN_VHT1SS_MCS6)) //64QAM
 			PwrTrackingLimit = 30; //+3dB
-		else if(TxRate == MGN_VHT1SS_MCS7) //64QAM
+		else if((TxRate >= MGN_VHT1SS_MCS5)&&(TxRate <= MGN_VHT1SS_MCS6)) //64QAM
 			PwrTrackingLimit = 28; //+2dB
-		else if(TxRate == MGN_VHT1SS_MCS8) //256QAM
+		else if(TxRate == MGN_VHT1SS_MCS7) //64QAM
 			PwrTrackingLimit = 26; //+1dB
-		else if(TxRate == MGN_VHT1SS_MCS9) //256QAM
+		else if(TxRate == MGN_VHT1SS_MCS8) //256QAM
 			PwrTrackingLimit = 24; //+0dB
-		else
+		else if(TxRate == MGN_VHT1SS_MCS9) //256QAM
+			PwrTrackingLimit = 22; //-1dB
+
+		else			
 			PwrTrackingLimit = 24;
 	}
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("TxRate=0x%x, PwrTrackingLimit=%d\n", TxRate, PwrTrackingLimit));
@@ -230,66 +244,59 @@ ODM_TxPwrTrackSetPwr8821A(
 	}
 	else if (Method == MIX_MODE)
 	{
-			ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("pDM_Odm->DefaultOfdmIndex=%d, pDM_Odm->Aboslute_OFDMSwingIdx[RFPath]=%d, RF_Path = %d\n",
-				pDM_Odm->DefaultOfdmIndex, pDM_Odm->Aboslute_OFDMSwingIdx[RFPath],RFPath ));
-			
-	
-			Final_OFDM_Swing_Index = pDM_Odm->DefaultOfdmIndex + pDM_Odm->Aboslute_OFDMSwingIdx[RFPath];
-			
-			if (RFPath == ODM_RF_PATH_A)  
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("pDM_Odm->DefaultOfdmIndex=%d, pDM_Odm->Absolute_OFDMSwingIdx[RFPath]=%d, RF_Path = %d\n",
+			pDM_Odm->DefaultOfdmIndex, pDM_Odm->Absolute_OFDMSwingIdx[RFPath],RFPath ));
+
+		Final_CCK_Swing_Index = pDM_Odm->DefaultCckIndex + pDM_Odm->Absolute_OFDMSwingIdx[RFPath];
+		Final_OFDM_Swing_Index = pDM_Odm->DefaultOfdmIndex + pDM_Odm->Absolute_OFDMSwingIdx[RFPath];
+
+		if (RFPath == ODM_RF_PATH_A)  
+		{
+			if(Final_OFDM_Swing_Index > PwrTrackingLimit)     //BBSwing higher then Limit
 			{
-				if(Final_OFDM_Swing_Index > PwrTrackingLimit)     //BBSwing higher then Limit
-				{
-					pDM_Odm->Remnant_CCKSwingIdx= Final_OFDM_Swing_Index - PwrTrackingLimit;            // CCK Follow the same compensate value as Path A
-					pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = Final_OFDM_Swing_Index - PwrTrackingLimit;            
+				pDM_Odm->Remnant_CCKSwingIdx= Final_CCK_Swing_Index - PwrTrackingLimit;
+				pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = Final_OFDM_Swing_Index - PwrTrackingLimit;            
 
-					ODM_SetBBReg(pDM_Odm, rA_TxScale_Jaguar, 0xFFE00000, TxScalingTable_Jaguar[PwrTrackingLimit]);
+				ODM_SetBBReg(pDM_Odm, rA_TxScale_Jaguar, 0xFFE00000, TxScalingTable_Jaguar[PwrTrackingLimit]);
 
-					pDM_Odm->Modify_TxAGC_Flag_PathA= TRUE;
+				pDM_Odm->Modify_TxAGC_Flag_PathA= TRUE;
 
-					//Set TxAGC Page C{};
-					//Adapter->HalFunc.SetTxPowerLevelHandler(Adapter, pHalData->CurrentChannel);
-					PHY_SetTxPowerLevel8812(Adapter, pHalData->CurrentChannel);
+				PHY_SetTxPowerLevelByPath(Adapter, pHalData->CurrentChannel, ODM_RF_PATH_A);
 
-					ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A Over BBSwing Limit , PwrTrackingLimit = %d , Remnant TxAGC Value = %d \n", PwrTrackingLimit, pDM_Odm->Remnant_OFDMSwingIdx[RFPath]));
-				}
-				else if (Final_OFDM_Swing_Index < 0)
-				{
-					pDM_Odm->Remnant_CCKSwingIdx= Final_OFDM_Swing_Index;            // CCK Follow the same compensate value as Path A
-					pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = Final_OFDM_Swing_Index;     
-
-					ODM_SetBBReg(pDM_Odm, rA_TxScale_Jaguar, 0xFFE00000, TxScalingTable_Jaguar[0]);
-
-					pDM_Odm->Modify_TxAGC_Flag_PathA= TRUE;
-
-					//Set TxAGC Page C{};
-					//Adapter->HalFunc.SetTxPowerLevelHandler(Adapter, pHalData->CurrentChannel);
-					PHY_SetTxPowerLevel8812(Adapter, pHalData->CurrentChannel);
-
-					ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A Lower then BBSwing lower bound  0 , Remnant TxAGC Value = %d \n", pDM_Odm->Remnant_OFDMSwingIdx[RFPath]));
-				}
-				else
-				{
-					ODM_SetBBReg(pDM_Odm, rA_TxScale_Jaguar, 0xFFE00000, TxScalingTable_Jaguar[Final_OFDM_Swing_Index]);
-
-					ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A Compensate with BBSwing , Final_OFDM_Swing_Index = %d \n", Final_OFDM_Swing_Index));
-
-					if(pDM_Odm->Modify_TxAGC_Flag_PathA)  //If TxAGC has changed, reset TxAGC again
-					{
-						pDM_Odm->Remnant_CCKSwingIdx= 0;
-						pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = 0;     
-
-						//Set TxAGC Page C{};
-						//Adapter->HalFunc.SetTxPowerLevelHandler(Adapter, pHalData->CurrentChannel);
-						PHY_SetTxPowerLevel8812(Adapter, pHalData->CurrentChannel);
-
-						pDM_Odm->Modify_TxAGC_Flag_PathA= FALSE;
-
-						ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A pDM_Odm->Modify_TxAGC_Flag = FALSE \n"));
-					}
-				}	
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A Over BBSwing Limit , PwrTrackingLimit = %d , Remnant TxAGC Value = %d \n", PwrTrackingLimit, pDM_Odm->Remnant_OFDMSwingIdx[RFPath]));
 			}
-			
+			else if (Final_OFDM_Swing_Index < 0)
+			{
+				pDM_Odm->Remnant_CCKSwingIdx= Final_CCK_Swing_Index;
+				pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = Final_OFDM_Swing_Index;     
+
+				ODM_SetBBReg(pDM_Odm, rA_TxScale_Jaguar, 0xFFE00000, TxScalingTable_Jaguar[0]);
+
+				pDM_Odm->Modify_TxAGC_Flag_PathA= TRUE;
+
+				PHY_SetTxPowerLevelByPath(Adapter, pHalData->CurrentChannel, ODM_RF_PATH_A);
+
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A Lower then BBSwing lower bound  0 , Remnant TxAGC Value = %d \n", pDM_Odm->Remnant_OFDMSwingIdx[RFPath]));
+			}
+			else
+			{
+				ODM_SetBBReg(pDM_Odm, rA_TxScale_Jaguar, 0xFFE00000, TxScalingTable_Jaguar[Final_OFDM_Swing_Index]);
+
+				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A Compensate with BBSwing , Final_OFDM_Swing_Index = %d \n", Final_OFDM_Swing_Index));
+
+				if(pDM_Odm->Modify_TxAGC_Flag_PathA)  //If TxAGC has changed, reset TxAGC again
+				{
+					pDM_Odm->Remnant_CCKSwingIdx= 0;
+					pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = 0;
+
+					PHY_SetTxPowerLevelByPath(Adapter, pHalData->CurrentChannel, ODM_RF_PATH_A);
+
+					pDM_Odm->Modify_TxAGC_Flag_PathA= FALSE;
+
+					ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A pDM_Odm->Modify_TxAGC_Flag = FALSE \n"));
+				}
+			}
+		}
 	}
 	else
 	{
@@ -309,8 +316,7 @@ GetDeltaSwingTable_8821A(
     PADAPTER        Adapter   		 = pDM_Odm->Adapter;
 	PODM_RF_CAL_T  	pRFCalibrateInfo = &(pDM_Odm->RFCalibrateInfo);
 	HAL_DATA_TYPE  	*pHalData  		 = GET_HAL_DATA(Adapter);
-	//u2Byte         	rate 	  	   	 = pMgntInfo->ForcedDataRate;
-	u2Byte         	rate 	  	   	 = 0;
+	u2Byte			rate			 = *(pDM_Odm->pForcedDataRate);
 	u1Byte         	channel   		 = pHalData->CurrentChannel;
 
 		
@@ -524,6 +530,10 @@ void _IQK_RestoreAFE_8821A(
 	ODM_Write4Byte(pDM_Odm, 0xc84, 0x0);
 	ODM_Write4Byte(pDM_Odm, 0xc88, 0x0);
 	ODM_Write4Byte(pDM_Odm, 0xc8c, 0x3c000000);
+	ODM_Write4Byte(pDM_Odm, 0xc90, 0x00000080);
+	ODM_Write4Byte(pDM_Odm, 0xc94, 0x00000000);
+	ODM_Write4Byte(pDM_Odm, 0xcc4, 0x20040000);
+	ODM_Write4Byte(pDM_Odm, 0xcc8, 0x20000000);
 	ODM_Write4Byte(pDM_Odm, 0xcb8, 0x0);
 	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("RestoreAFE Success!!!!\n"));
 }
@@ -536,11 +546,10 @@ void _IQK_ConfigureMAC_8821A(
 	// ========MAC register setting========
 	ODM_SetBBReg(pDM_Odm, 0x82c, BIT(31), 0x0); // [31] = 0 --> Page C
 	ODM_Write1Byte(pDM_Odm, 0x522, 0x3f);
-	ODM_SetBBReg(pDM_Odm, 0x550, BIT(3), 0x0);
-	ODM_SetBBReg(pDM_Odm, 0x551, BIT(3), 0x0);
-	ODM_SetBBReg(pDM_Odm, 0x808, BIT(28), 0x0);	//		CCK Off
+	ODM_SetBBReg(pDM_Odm, 0x550, BIT(11)|BIT(3), 0x0);
 	ODM_Write1Byte(pDM_Odm, 0x808, 0x00);		//		RX ante off
 	ODM_SetBBReg(pDM_Odm, 0x838, 0xf, 0xc);		//		CCA off
+	ODM_Write1Byte(pDM_Odm, 0xa07, 0xf);		//  		CCK RX Path off
 }
 
 #define cal_num 3
@@ -562,7 +571,7 @@ void _IQK_Tx_8821A(
 	if (*pDM_Odm->pBandWidth == 2){
 		VDF_enable = TRUE;
 	}
-	
+
 	while (cal < cal_num){
 		switch (Path) {
 			case ODM_RF_PATH_A:
@@ -582,13 +591,6 @@ void _IQK_Tx_8821A(
 				ODM_Write4Byte(pDM_Odm, 0xc64, 0x77777777);
 
 				ODM_Write4Byte(pDM_Odm, 0xc68, 0x19791979);
-				ODM_Write4Byte(pDM_Odm, 0xc6c, 0x19791979);
-				ODM_Write4Byte(pDM_Odm, 0xc70, 0x19791979);
-				ODM_Write4Byte(pDM_Odm, 0xc74, 0x19791979);
-				ODM_Write4Byte(pDM_Odm, 0xc78, 0x19791979);
-				ODM_Write4Byte(pDM_Odm, 0xc7c, 0x19791979);
-				ODM_Write4Byte(pDM_Odm, 0xc80, 0x19791979);
-				ODM_Write4Byte(pDM_Odm, 0xc84, 0x19791979);
 
 				ODM_SetBBReg(pDM_Odm, 0xc00, 0xf, 0x4);// 	hardware 3-wire off
 
@@ -605,7 +607,6 @@ void _IQK_Tx_8821A(
 				ODM_SetRFReg(pDM_Odm, Path, 0x32, bRFRegOffsetMask, 0xf3fc3);
 				ODM_SetRFReg(pDM_Odm, Path, 0x65, bRFRegOffsetMask, 0x931d5);
 				ODM_SetRFReg(pDM_Odm, Path, 0x8f, bRFRegOffsetMask, 0x8a001);
-				ODM_SetBBReg(pDM_Odm, 0xcb8, 0xf, 0xd);
 				ODM_Write4Byte(pDM_Odm, 0x90c, 0x00008000);
 				ODM_Write4Byte(pDM_Odm, 0xb00, 0x03000100);
 				ODM_SetBBReg(pDM_Odm, 0xc94, BIT(0), 0x1);
@@ -663,7 +664,6 @@ void _IQK_Tx_8821A(
 				ODM_SetRFReg(pDM_Odm, Path, 0x65, bRFRegOffsetMask, 0x931d5);
 				ODM_SetRFReg(pDM_Odm, Path, 0x8f, bRFRegOffsetMask, 0x8a001);
 				ODM_SetRFReg(pDM_Odm, Path, 0xef, bRFRegOffsetMask, 0x00000);
-				ODM_SetBBReg(pDM_Odm, 0xcb8, 0xf, 0xd);
 				ODM_Write4Byte(pDM_Odm, 0x90c, 0x00008000);
 				ODM_Write4Byte(pDM_Odm, 0xb00, 0x03000100);
 				ODM_SetBBReg(pDM_Odm, 0xc94, BIT(0), 0x1);
@@ -848,7 +848,6 @@ void _IQK_Tx_8821A(
 					ODM_SetRFReg(pDM_Odm, Path, 0x8f, bRFRegOffsetMask, 0x8a001);
 					ODM_SetRFReg(pDM_Odm, Path, 0xef, bRFRegOffsetMask, 0x00000);
 					
-					ODM_SetBBReg(pDM_Odm, 0xcb8, 0xf, 0xd);
 					ODM_Write4Byte(pDM_Odm, 0x978, 0x29002000);// TX (X,Y)
 					ODM_Write4Byte(pDM_Odm, 0x97c, 0xa9002000);// RX (X,Y)
 					ODM_Write4Byte(pDM_Odm, 0x984, 0x0046a910);// [0]:AGC_en, [15]:idac_K_Mask
@@ -959,7 +958,6 @@ void _IQK_Tx_8821A(
 			              ODM_SetBBReg(pDM_Odm, 0x978, 0x000007FF, (TX_Y0_RXK[cal])>>21&0x000007ff);
 					ODM_SetBBReg(pDM_Odm, 0x978, BIT(31), 0x1);
 					ODM_SetBBReg(pDM_Odm, 0x97c, BIT(31), 0x0);
-					ODM_SetBBReg(pDM_Odm, 0xcb8, 0xF, 0xe);
 					ODM_Write4Byte(pDM_Odm, 0x90c, 0x00008000);
 					ODM_Write4Byte(pDM_Odm, 0x984, 0x0046a911);
 					
@@ -967,7 +965,10 @@ void _IQK_Tx_8821A(
 					ODM_SetBBReg(pDM_Odm, 0xc80, BIT(29), 0x1); 
 					ODM_SetBBReg(pDM_Odm, 0xc84, BIT(29), 0x0); 
 					ODM_Write4Byte(pDM_Odm, 0xc88, 0x02140119);
-					ODM_Write4Byte(pDM_Odm, 0xc8c, 0x28161420);
+					if (pDM_Odm->SupportInterface == 1)
+						ODM_Write4Byte(pDM_Odm, 0xc8c, 0x28160d00);
+					else
+						ODM_Write4Byte(pDM_Odm, 0xc8c, 0x28161420);
 
 					if (k==2){
 						ODM_SetBBReg(pDM_Odm, 0xce8, BIT(30), 0x1);  //RX VDF Enable
@@ -1122,7 +1123,6 @@ void _IQK_Tx_8821A(
 	                     ODM_SetBBReg(pDM_Odm, 0x978, 0x000007FF, (TX_Y0_RXK[cal])>>21&0x000007ff);
 				ODM_SetBBReg(pDM_Odm, 0x978, BIT(31), 0x1);
 				ODM_SetBBReg(pDM_Odm, 0x97c, BIT(31), 0x0);
-				ODM_SetBBReg(pDM_Odm, 0xcb8, 0xF, 0xe);
 				ODM_Write4Byte(pDM_Odm, 0x90c, 0x00008000);
 				ODM_Write4Byte(pDM_Odm, 0x984, 0x0046a911);
 				
@@ -1130,7 +1130,12 @@ void _IQK_Tx_8821A(
 				ODM_Write4Byte(pDM_Odm, 0xc80, 0x38008c10);// TX_Tone_idx[9:0], TxK_Mask[29] TX_Tone = 16
 				ODM_Write4Byte(pDM_Odm, 0xc84, 0x18008c10);// RX_Tone_idx[9:0], RxK_Mask[29]
 				ODM_Write4Byte(pDM_Odm, 0xc88, 0x02140119);
-				ODM_Write4Byte(pDM_Odm, 0xc8c, 0x28161440);
+
+				if (pDM_Odm->SupportInterface == 1)
+					ODM_Write4Byte(pDM_Odm, 0xc8c, 0x28160d00);
+				else
+					ODM_Write4Byte(pDM_Odm, 0xc8c, 0x28161440);
+
 				ODM_Write4Byte(pDM_Odm, 0xcb8, 0x00100000);// cb8[20] 將 SI/PI 使用權切給 iqk_dpk module
 				
 				cal_retry = 0;
@@ -1157,6 +1162,22 @@ void _IQK_Tx_8821A(
 						// ============RXIQK Check==============
 						RX_fail = ODM_GetBBReg(pDM_Odm, 0xd00, BIT(11));
 						if (RX_fail == 0){
+							/*
+							ODM_Write4Byte(pDM_Odm, 0xcb8, 0x05000000);
+							reg1 = ODM_GetBBReg(pDM_Odm, 0xd00, 0xffffffff);
+							ODM_Write4Byte(pDM_Odm, 0xcb8, 0x06000000);
+							reg2 = ODM_GetBBReg(pDM_Odm, 0xd00, 0x0000001f);
+							DbgPrint("reg1 = %d, reg2 = %d", reg1, reg2);
+							Image_Power = (reg2<<32)+reg1;
+							DbgPrint("Before PW = %d\n", Image_Power);
+							ODM_Write4Byte(pDM_Odm, 0xcb8, 0x07000000);
+							reg1 = ODM_GetBBReg(pDM_Odm, 0xd00, 0xffffffff);
+							ODM_Write4Byte(pDM_Odm, 0xcb8, 0x08000000);
+							reg2 = ODM_GetBBReg(pDM_Odm, 0xd00, 0x0000001f);
+							Image_Power = (reg2<<32)+reg1;
+							DbgPrint("After PW = %d\n", Image_Power);
+							*/
+							
 							ODM_Write4Byte(pDM_Odm, 0xcb8, 0x06000000);
 							RX_X0[cal] = ODM_GetBBReg(pDM_Odm, 0xd00, 0x07ff0000)<<21;
 							ODM_Write4Byte(pDM_Odm, 0xcb8, 0x08000000);
@@ -1240,9 +1261,9 @@ void _IQK_Tx_8821A(
 		for (i = 0; i < RX_Average; i++){
 			for (ii = i+1; ii <RX_Average; ii++){
 				dx = (RX_X0[i]>>21) - (RX_X0[ii]>>21);
-				if (dx < 3 && dx > -3){
+				if (dx < 4 && dx > -4){
 					dy = (RX_Y0[i]>>21) - (RX_Y0[ii]>>21);
-						if (dy < 3 && dy > -3){
+						if (dy < 4 && dy > -4){
 							RX_X = ((RX_X0[i]>>21) + (RX_X0[ii]>>21))/2;
 							RX_Y = ((RX_Y0[i]>>21) + (RX_Y0[ii]>>21))/2;
 							RX_finish = 1;
@@ -1267,8 +1288,8 @@ void _IQK_Tx_8821A(
 	}
 }
 
-#define MACBB_REG_NUM 11
-#define AFE_REG_NUM 12
+#define MACBB_REG_NUM 12
+#define AFE_REG_NUM 4
 #define RF_REG_NUM 3
 
 VOID
@@ -1299,12 +1320,12 @@ phy_IQCalibrate_By_FW_8821A(
 	
 	IQKcmd[1] = Buf1 | Buf2;
 	IQKcmd[2] = pHalData->ExternalPA_5G | pHalData->ExternalLNA_5G<<1;
-	
-	
-	//RT_TRACE(COMP_MP, DBG_LOUD, ("== IQK Start ==\n"));
 
-	//FillH2CCmd_8812(pAdapter, 0x45, 3, IQKcmd);
+	DBG_871X("== IQK Start ==\n");
 
+	FillH2CCmd_8812(pAdapter, 0x45, 3, IQKcmd);
+
+	rtl8812_iqk_wait(pAdapter, 500);
 }
                          
 VOID	
@@ -1313,8 +1334,8 @@ phy_IQCalibrate_8821A(
 	)
 {
 	u4Byte	MACBB_backup[MACBB_REG_NUM], AFE_backup[AFE_REG_NUM], RFA_backup[RF_REG_NUM], RFB_backup[RF_REG_NUM];
-	u4Byte 	Backup_MACBB_REG[MACBB_REG_NUM] = {0xb00, 0x520, 0x550, 0x808, 0x90c, 0xc00, 0xc50, 0xe00, 0xe50, 0x838, 0x82c}; 
-	u4Byte 	Backup_AFE_REG[AFE_REG_NUM] = {0xc5c, 0xc60, 0xc64, 0xc68, 0xc6c, 0xc70, 0xc74, 0xc78, 0xc7c, 0xc80, 0xc84, 0xcb8}; 
+	u4Byte 	Backup_MACBB_REG[MACBB_REG_NUM] = {0xb00, 0x520, 0x550, 0x808, 0xa04, 0x90c, 0xc00, 0xc50, 0xe00, 0xe50, 0x838, 0x82c}; 
+	u4Byte 	Backup_AFE_REG[AFE_REG_NUM] = {0xc5c, 0xc60, 0xc64, 0xc68}; 
 	u4Byte 	Backup_RF_REG[RF_REG_NUM] = {0x65, 0x8f, 0x0}; 
 	
 	_IQK_BackupMacBB_8821A(pDM_Odm, MACBB_backup, Backup_MACBB_REG, MACBB_REG_NUM);
@@ -1353,7 +1374,8 @@ PHY_IQCalibrate_8821A(
 	IN	BOOLEAN 	bReCovery
 	)
 {
-
+	u4Byte		StartTime; 
+	s4Byte		ProgressingTime;
 
 #if !(DM_ODM_SUPPORT_TYPE & ODM_AP)
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);	
@@ -1380,16 +1402,23 @@ PHY_IQCalibrate_8821A(
 #endif
 #endif //gtemp
 
+	StartTime = ODM_GetCurrentTime( pDM_Odm);
 
 #if MP_DRIVER == 1	
 	if( ! (pMptCtx->bSingleTone || pMptCtx->bCarrierSuppression) )
 #endif
 	{
-		//if(pMgntInfo->RegIQKFWOffload)
-		//	phy_IQCalibrate_By_FW_8821A(pAdapter);
-		//else
+		if(pHalData->RegIQKFWOffload)
+		{
+			phy_IQCalibrate_By_FW_8821A(pAdapter);
+		}
+		else
+		{
 			phy_IQCalibrate_8821A(pDM_Odm);
+		}
 	}
+	ProgressingTime = ODM_GetProgressingTime( pDM_Odm, StartTime);
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD,  ("IQK ProgressingTime = %d\n", ProgressingTime));
 }
 
 
@@ -1398,7 +1427,13 @@ PHY_LCCalibrate_8821A(
 	IN PDM_ODM_T		pDM_Odm
 	)
 {
+	u4Byte		StartTime; 
+	s4Byte		ProgressingTime;
+
+	StartTime = ODM_GetCurrentTime( pDM_Odm);
 	PHY_LCCalibrate_8812A(pDM_Odm);
+	ProgressingTime = ODM_GetProgressingTime( pDM_Odm, StartTime);
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD,  ("LCK ProgressingTime = %d\n", ProgressingTime));
 }
 
 

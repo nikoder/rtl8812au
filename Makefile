@@ -14,27 +14,30 @@ EXTRA_CFLAGS += -Wno-unused-parameter
 EXTRA_CFLAGS += -Wno-unused-function
 EXTRA_CFLAGS += -Wno-unused
 
-EXTRA_CFLAGS += -Wno-uninitialized
+#EXTRA_CFLAGS += -Wno-uninitialized
 
 EXTRA_CFLAGS += -I$(src)/include
 
+EXTRA_LDFLAGS += --strip-debug
+
 CONFIG_AUTOCFG_CP = n
 
+########################## WIFI IC ############################
 CONFIG_MULTIDRV = n
 CONFIG_RTL8192C = n
 CONFIG_RTL8192D = n
 CONFIG_RTL8723A = n
 CONFIG_RTL8188E = n
-CONFIG_RTL8812A = y
+CONFIG_RTL8812A = n
 CONFIG_RTL8821A = y
 CONFIG_RTL8192E = n
 CONFIG_RTL8723B = n
-
+######################### Interface ###########################
 CONFIG_USB_HCI = y
 CONFIG_PCI_HCI = n
 CONFIG_SDIO_HCI = n
 CONFIG_GSPI_HCI = n
-
+########################## Features ###########################
 CONFIG_MP_INCLUDED = y
 CONFIG_POWER_SAVING = y
 CONFIG_USB_AUTOSUSPEND = n
@@ -46,9 +49,20 @@ CONFIG_INTEL_WIDI = n
 CONFIG_WAPI_SUPPORT = n
 CONFIG_EFUSE_CONFIG_FILE = n
 CONFIG_EXT_CLK = n
-CONFIG_FTP_PROTECT = n
+CONFIG_TRAFFIC_PROTECT = y
+CONFIG_LOAD_PHY_PARA_FROM_FILE = y
+CONFIG_CALIBRATE_TX_POWER_BY_REGULATORY = n
+CONFIG_CALIBRATE_TX_POWER_TO_MAX = n
+CONFIG_ODM_ADAPTIVITY = n
+######################## Wake On Lan ##########################
 CONFIG_WOWLAN = n
-
+CONFIG_GPIO_WAKEUP = n
+CONFIG_PNO_SUPPORT = n
+CONFIG_PNO_SET_DEBUG = n
+CONFIG_AP_WOWLAN = n
+######### Notify SDIO Host Keep Power During Syspend ##########
+CONFIG_RTW_SDIO_PM_KEEP_POWER = y
+###################### Platform Related #######################
 CONFIG_PLATFORM_I386_PC = y
 CONFIG_PLATFORM_ANDROID_X86 = n
 CONFIG_PLATFORM_JB_X86 = n
@@ -71,17 +85,26 @@ CONFIG_PLATFORM_ARM_TCC8900 = n
 CONFIG_PLATFORM_ARM_TCC8920 = n
 CONFIG_PLATFORM_ARM_TCC8920_JB42 = n
 CONFIG_PLATFORM_ARM_RK2818 = n
+CONFIG_PLATFORM_ARM_RK3066 = n
+CONFIG_PLATFORM_ARM_RK3188 = n
 CONFIG_PLATFORM_ARM_URBETTER = n
 CONFIG_PLATFORM_ARM_TI_PANDA = n
 CONFIG_PLATFORM_MIPS_JZ4760 = n
 CONFIG_PLATFORM_DMP_PHILIPS = n
 CONFIG_PLATFORM_TI_DM365 = n
 CONFIG_PLATFORM_MSTAR_TITANIA12 = n
+CONFIG_PLATFORM_MSTAR = n
 CONFIG_PLATFORM_SZEBOOK = n
 CONFIG_PLATFORM_ARM_SUNxI = n
 CONFIG_PLATFORM_ARM_SUN6I = n
+CONFIG_PLATFORM_ARM_SUN7I = n
+CONFIG_PLATFORM_ARM_SUN8I = n
 CONFIG_PLATFORM_ACTIONS_ATM702X = n
 CONFIG_PLATFORM_ACTIONS_ATV5201 = n
+CONFIG_PLATFORM_ARM_RTD299X = n
+CONFIG_PLATFORM_ARM_SPREADTRUM_6820 = n
+CONFIG_PLATFORM_ARM_SPREADTRUM_8810 = n
+###############################################################
 
 CONFIG_DRVEXT_MODULE = n
 
@@ -114,7 +137,9 @@ _OS_INTFS_FILES :=	os_dep/osdep_service.o \
 			os_dep/linux/mlme_linux.o \
 			os_dep/linux/recv_linux.o \
 			os_dep/linux/ioctl_cfg80211.o \
-			os_dep/linux/rtw_android.o
+			os_dep/linux/wifi_regd.o \
+			os_dep/linux/rtw_android.o \
+			os_dep/linux/rtw_proc.o
 
 ifeq ($(CONFIG_SDIO_HCI), y)
 _OS_INTFS_FILES += os_dep/linux/custom_gpio_linux.o
@@ -131,14 +156,35 @@ _HAL_INTFS_FILES :=	hal/hal_intf.o \
 			hal/hal_com.o \
 			hal/hal_com_phycfg.o \
 			hal/hal_phy.o \
+			hal/hal_btcoex.o \
+			hal/hal_hci/hal_$(HCI_NAME).o \
 			hal/led/hal_$(HCI_NAME)_led.o
-
+			
 _OUTSRC_FILES := hal/OUTSRC/odm_debug.o	\
+		hal/OUTSRC/odm_AntDiv.o\
 		hal/OUTSRC/odm_interface.o\
 		hal/OUTSRC/odm_HWConfig.o\
 		hal/OUTSRC/odm.o\
 		hal/OUTSRC/HalPhyRf.o
 
+EXTRA_CFLAGS += -I$(src)/platform
+_PLATFORM_FILES := platform/platform_ops.o
+
+ifeq ($(CONFIG_BT_COEXIST), y)
+EXTRA_CFLAGS += -I$(src)/hal/OUTSRC-BTCoexist
+_OUTSRC_FILES += hal/OUTSRC-BTCoexist/HalBtc8188c2Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8192d2Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8192e1Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8192e2Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8723a1Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8723a2Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8723b1Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8723b2Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8812a1Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8812a2Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8821a1Ant.o \
+				hal/OUTSRC-BTCoexist/HalBtc8821a2Ant.o
+endif
 		
 ########### HAL_RTL8192C #################################										
 
@@ -286,10 +332,6 @@ endif
 
 ifeq ($(CONFIG_MP_INCLUDED), y)
 _HAL_INTFS_FILES += hal/$(RTL871X)/$(RTL871X)_mp.o
-endif
-
-ifeq ($(CONFIG_BT_COEXIST), y)
-_HAL_INTFS_FILES +=  hal/$(RTL871X)/rtl8723a_bt-coexist.o
 endif
 
 ifeq ($(CONFIG_GSPI_HCI), y)
@@ -493,22 +535,25 @@ _OUTSRC_FILES += hal/OUTSRC/$(RTL871X)/HalHWImg8812A_FW.o\
 		hal/OUTSRC/$(RTL871X)/HalHWImg8812A_TestChip_BB.o\
 		hal/OUTSRC/$(RTL871X)/HalHWImg8812A_TestChip_RF.o\
 		hal/OUTSRC/$(RTL871X)/HalPhyRf_8812A.o\
-		hal/OUTSRC/$(RTL871X)/odm_RegConfig8812A.o
+		hal/OUTSRC/$(RTL871X)/odm_RegConfig8812A.o\
+		hal/OUTSRC/$(RTL871X)/odm_RTL8812A.o
 endif
 
 ifeq ($(CONFIG_RTL8821A), y)
 
 ifeq ($(CONFIG_RTL8812A), n)
+
+RTL871X = rtl8821a
 ifeq ($(CONFIG_USB_HCI), y)
 MODULE_NAME := 8821au
 endif
 ifeq ($(CONFIG_PCI_HCI), y)
 MODULE_NAME := 8821ae
 endif
-endif
-
 ifeq ($(CONFIG_SDIO_HCI), y)
 MODULE_NAME := 8821as
+endif
+
 endif
 
 EXTRA_CFLAGS += -DCONFIG_RTL8821A
@@ -521,7 +566,8 @@ _OUTSRC_FILES += hal/OUTSRC/rtl8821a/HalHWImg8821A_FW.o\
 		hal/OUTSRC/rtl8821a/HalHWImg8821A_TestChip_RF.o\
 		hal/OUTSRC/rtl8812a/HalPhyRf_8812A.o\
 		hal/OUTSRC/rtl8821a/HalPhyRf_8821A.o\
-		hal/OUTSRC/rtl8821a/odm_RegConfig8821A.o		
+		hal/OUTSRC/rtl8821a/odm_RegConfig8821A.o\
+		hal/OUTSRC/rtl8821a/odm_RTL8821A.o
 endif	
 
 
@@ -531,7 +577,16 @@ endif
 ifeq ($(CONFIG_RTL8723B), y)
 
 RTL871X = rtl8723b
+ifeq ($(CONFIG_USB_HCI), y)
+MODULE_NAME = 8723bu
+endif
+ifeq ($(CONFIG_PCI_HCI), y)
+MODULE_NAME = 8723be
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
 MODULE_NAME = 8723bs
+endif
+
 EXTRA_CFLAGS += -DCONFIG_RTL8723B
 
 _HAL_INTFS_FILES += hal/HalPwrSeqCmd.o \
@@ -544,18 +599,22 @@ _HAL_INTFS_FILES +=	hal/$(RTL871X)/$(RTL871X)_hal_init.o \
 			hal/$(RTL871X)/$(RTL871X)_dm.o \
 			hal/$(RTL871X)/$(RTL871X)_rxdesc.o \
 			hal/$(RTL871X)/$(RTL871X)_cmd.o \
+			
+
+_HAL_INTFS_FILES +=	\
 			hal/$(RTL871X)/$(HCI_NAME)/$(HCI_NAME)_halinit.o \
 			hal/$(RTL871X)/$(HCI_NAME)/rtl$(MODULE_NAME)_led.o \
 			hal/$(RTL871X)/$(HCI_NAME)/rtl$(MODULE_NAME)_xmit.o \
 			hal/$(RTL871X)/$(HCI_NAME)/rtl$(MODULE_NAME)_recv.o
 
+ifeq ($(CONFIG_PCI_HCI), y)
+_HAL_INTFS_FILES += hal/$(RTL871X)/$(HCI_NAME)/$(HCI_NAME)_ops_linux.o
+else
 _HAL_INTFS_FILES += hal/$(RTL871X)/$(HCI_NAME)/$(HCI_NAME)_ops.o
+endif
 
 ifeq ($(CONFIG_MP_INCLUDED), y)
 _HAL_INTFS_FILES += hal/$(RTL871X)/$(RTL871X)_mp.o
-endif
-ifeq ($(CONFIG_BT_COEXIST), y)
-_HAL_INTFS_FILES +=  hal/$(RTL871X)/rtl8723b_bt-coexist.o
 endif
 
 _OUTSRC_FILES += hal/OUTSRC/$(RTL871X)/HalHWImg8723B_BB.o\
@@ -627,6 +686,7 @@ ifeq ($(CONFIG_WAPI_SUPPORT), y)
 EXTRA_CFLAGS += -DCONFIG_WAPI_SUPPORT
 endif
 
+
 ifeq ($(CONFIG_EFUSE_CONFIG_FILE), y)
 EXTRA_CFLAGS += -DCONFIG_EFUSE_CONFIG_FILE
 endif
@@ -635,13 +695,54 @@ ifeq ($(CONFIG_EXT_CLK), y)
 EXTRA_CFLAGS += -DCONFIG_EXT_CLK
 endif
 
-ifeq ($(CONFIG_FTP_PROTECT), y)
-EXTRA_CFLAGS += -DCONFIG_FTP_PROTECT
+ifeq ($(CONFIG_TRAFFIC_PROTECT), y)
+EXTRA_CFLAGS += -DCONFIG_TRAFFIC_PROTECT
 endif
 
-ifeq ($(CONFIG_RTL8188E), y)
+ifeq ($(CONFIG_LOAD_PHY_PARA_FROM_FILE), y)
+EXTRA_CFLAGS += -DCONFIG_LOAD_PHY_PARA_FROM_FILE
+endif
+
+ifeq ($(CONFIG_CALIBRATE_TX_POWER_BY_REGULATORY), y)
+EXTRA_CFLAGS += -DCONFIG_CALIBRATE_TX_POWER_BY_REGULATORY
+endif
+
+ifeq ($(CONFIG_CALIBRATE_TX_POWER_TO_MAX), y)
+EXTRA_CFLAGS += -DCONFIG_CALIBRATE_TX_POWER_TO_MAX
+endif
+
+ifeq ($(CONFIG_ODM_ADAPTIVITY), y)
+EXTRA_CFLAGS += -DCONFIG_ODM_ADAPTIVITY
+endif
+
 ifeq ($(CONFIG_WOWLAN), y)
 EXTRA_CFLAGS += -DCONFIG_WOWLAN
+ifeq ($(CONFIG_SDIO_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_RTW_SDIO_PM_KEEP_POWER
+endif
+endif
+
+ifeq ($(CONFIG_AP_WOWLAN), y)
+EXTRA_CFLAGS += -DCONFIG_AP_WOWLAN
+ifeq ($(CONFIG_SDIO_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_RTW_SDIO_PM_KEEP_POWER
+endif
+endif
+
+ifeq ($(CONFIG_PNO_SUPPORT), y)
+EXTRA_CFLAGS += -DCONFIG_PNO_SUPPORT
+ifeq ($(CONFIG_PNO_SET_DEBUG), y)
+EXTRA_CFLAGS += -DCONFIG_PNO_SET_DEBUG
+endif
+endif
+
+ifeq ($(CONFIG_GPIO_WAKEUP), y)
+EXTRA_CFLAGS += -DCONFIG_GPIO_WAKEUP
+endif
+
+ifeq ($(CONFIG_RTW_SDIO_PM_KEEP_POWER), y)
+ifeq ($(CONFIG_SDIO_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_RTW_SDIO_PM_KEEP_POWER
 endif
 endif
 
@@ -676,11 +777,19 @@ ARCH := arm
 endif
 
 ifeq ($(CONFIG_PLATFORM_MSTAR_TITANIA12), y)
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_MSTAR_TITANIA12
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_MSTAR -DCONFIG_PLATFORM_MSTAR_TITANIA12
 ARCH:=mips
 CROSS_COMPILE:= /usr/src/Mstar_kernel/mips-4.3/bin/mips-linux-gnu-
 KVER:= 2.6.28.9
 KSRC:= /usr/src/Mstar_kernel/2.6.28.9/
+endif
+
+ifeq ($(CONFIG_PLATFORM_MSTAR), y)
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_MSTAR 		#-DCONFIG_PLATFORM_MSTAR_SCAN_BEFORE_CONNECT
+ARCH:=arm
+CROSS_COMPILE:= /usr/src/bin/arm-none-linux-gnueabi-
+KVER:= 3.1.10
+KSRC:= /usr/src/Mstar_kernel/3.1.10/
 endif
 
 ifeq ($(CONFIG_PLATFORM_ANDROID_X86), y)
@@ -776,7 +885,11 @@ KSRC ?=/usr/local/Jupiter/linux-2.6.12
 endif
 
 ifeq ($(CONFIG_PLATFORM_RTK_DMP), y)
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DRTK_DMP_PLATFORM
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DRTK_DMP_PLATFORM  -DCONFIG_WIRELESS_EXT
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+ifeq ($(CONFIG_USB_HCI), y)
+_PLATFORM_FILES += platform/platform_RTK_DMP_usb.o
+endif
 ARCH:=mips
 CROSS_COMPILE:=mipsel-linux-
 KVER:=
@@ -879,11 +992,44 @@ MODULE_NAME := wlan
 endif
 
 ifeq ($(CONFIG_PLATFORM_ARM_RK2818), y)
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_ANDROID -DCONFIG_PLATFORM_ROCKCHIPS -DCONFIG_MINIMAL_MEMORY_USAGE
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_ANDROID -DCONFIG_PLATFORM_ROCKCHIPS
 ARCH := arm
 CROSS_COMPILE := /usr/src/release_fae_version/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
 KSRC := /usr/src/release_fae_version/kernel25_A7_281x
 MODULE_NAME := wlan
+endif
+
+ifeq ($(CONFIG_PLATFORM_ARM_RK3188), y)
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_ANDROID -DCONFIG_PLATFORM_ROCKCHIPS
+# default setting for Android 4.1, 4.2, 4.3, 4.4
+EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+# default setting for Power control
+EXTRA_CFLAGS += -DRTW_ENABLE_WIFI_CONTROL_FUNC
+EXTRA_CFLAGS += -DRTW_SUPPORT_PLATFORM_SHUTDOWN
+# default setting for Special function
+EXTRA_CFLAGS += -DCONFIG_P2P_IPS
+ARCH := arm
+CROSS_COMPILE := /home/android_sdk/Rockchip/Rk3188/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
+KSRC := /home/android_sdk/Rockchip/Rk3188/kernel
+MODULE_NAME := wlan
+endif
+
+ifeq ($(CONFIG_PLATFORM_ARM_RK3066), y)
+EXTRA_CFLAGS += -DRTW_ENABLE_WIFI_CONTROL_FUNC
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211
+EXTRA_CFLAGS += -DCONFIG_P2P_IPS
+ifeq ($(CONFIG_SDIO_HCI), y)
+EXTRA_CFLAGS += -DRTW_SUPPORT_PLATFORM_SHUTDOWN
+endif
+EXTRA_CFLAGS += -fno-pic
+ARCH := arm
+CROSS_COMPILE := /home/android_sdk/Rockchip/rk3066_20130607/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.6/bin/arm-linux-androideabi-
+#CROSS_COMPILE := /home/android_sdk/Rockchip/Rk3066sdk/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.6/bin/arm-linux-androideabi-
+KSRC := /home/android_sdk/Rockchip/Rk3066sdk/kernel
+MODULE_NAME :=wlan
 endif
 
 ifeq ($(CONFIG_PLATFORM_ARM_URBETTER), y)
@@ -931,25 +1077,116 @@ endif
 
 
 ifeq ($(CONFIG_PLATFORM_ARM_SUNxI), y)
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_ARM_SUNxI
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_ARM_SUNxI
+# default setting for Android 4.1, 4.2
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
+EXTRA_CFLAGS += -DDCONFIG_P2P_IPS
+
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+ifeq ($(CONFIG_USB_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_USE_USB_BUFFER_ALLOC_TX
+_PLATFORM_FILES += platform/platform_ARM_SUNxI_usb.o
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+# default setting for A10-EVB mmc0
+#EXTRA_CFLAGS += -DCONFIG_WITS_EVB_V13
+_PLATFORM_FILES += platform/platform_ARM_SUNxI_sdio.o
+endif
+
 ARCH := arm
-CROSS_COMPILE := arm-none-linux-gnueabi-
+#CROSS_COMPILE := arm-none-linux-gnueabi-
+CROSS_COMPILE=/home/android_sdk/Allwinner/a10/android-jb42/lichee-jb42/buildroot/output/external-toolchain/bin/arm-none-linux-gnueabi-
 KVER  := 3.0.8
 #KSRC:= ../lichee/linux-3.0/
+KSRC=/home/android_sdk/Allwinner/a10/android-jb42/lichee-jb42/linux-3.0
 endif
 
 ifeq ($(CONFIG_PLATFORM_ARM_SUN6I), y)
 EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
 EXTRA_CFLAGS += -DCONFIG_PLATFORM_ARM_SUN6I
+EXTRA_CFLAGS += -DCONFIG_TRAFFIC_PROTECT
+# default setting for Android 4.1, 4.2, 4.3, 4.4
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
+EXTRA_CFLAGS += -DCONFIG_P2P_IPS -DCONFIG_QOS_OPTIMIZATION
+
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+ifeq ($(CONFIG_USB_HCI), y)
 EXTRA_CFLAGS += -DCONFIG_USE_USB_BUFFER_ALLOC_TX
+_PLATFORM_FILES += platform/platform_ARM_SUNxI_usb.o
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+# default setting for A31-EVB mmc0
+EXTRA_CFLAGS += -DCONFIG_A31_EVB
+_PLATFORM_FILES += platform/platform_ARM_SUNnI_sdio.o
+endif
+
+ARCH := arm
+#Android-JB42
+#CROSS_COMPILE := /home/android_sdk/Allwinner/a31/android-jb42/lichee/buildroot/output/external-toolchain/bin/arm-linux-gnueabi-
+#KSRC :=/home/android_sdk/Allwinner/a31/android-jb42/lichee/linux-3.3
+#ifeq ($(CONFIG_USB_HCI), y)
+#MODULE_NAME := 8188eu_sw
+#endif
+# ==== Cross compile setting for kitkat-a3x_v4.5 =====
+CROSS_COMPILE := /home/android_sdk/Allwinner/a31/kitkat-a3x_v4.5/lichee/buildroot/output/external-toolchain/bin/arm-linux-gnueabi-
+KSRC :=/home/android_sdk/Allwinner/a31/kitkat-a3x_v4.5/lichee/linux-3.3
+endif
+
+ifeq ($(CONFIG_PLATFORM_ARM_SUN7I), y)
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_ARM_SUN7I
+EXTRA_CFLAGS += -DCONFIG_TRAFFIC_PROTECT
+# default setting for Android 4.1, 4.2, 4.3, 4.4
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
+EXTRA_CFLAGS += -DCONFIG_P2P_IPS -DCONFIG_QOS_OPTIMIZATION
+
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+ifeq ($(CONFIG_USB_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_USE_USB_BUFFER_ALLOC_TX
+_PLATFORM_FILES += platform/platform_ARM_SUNxI_usb.o
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+_PLATFORM_FILES += platform/platform_ARM_SUNnI_sdio.o
+endif
+
+ARCH := arm
+# ===Cross compile setting for Android 4.2 SDK ===
+#CROSS_COMPILE := /home/android_sdk/Allwinner/a20_evb/lichee/out/android/common/buildroot/external-toolchain/bin/arm-linux-gnueabi-
+#KSRC := /home/android_sdk/Allwinner/a20_evb/lichee/linux-3.3
+# ==== Cross compile setting for Android 4.3 SDK =====
+#CROSS_COMPILE := /home/android_sdk/Allwinner/a20/android-jb43/lichee/out/android/common/buildroot/external-toolchain/bin/arm-linux-gnueabi-
+#KSRC := /home/android_sdk/Allwinner/a20/android-jb43/lichee/linux-3.4
+# ==== Cross compile setting for kitkat-a20_v4.4 =====
+CROSS_COMPILE := /home/android_sdk/Allwinner/a20/kitkat-a20_v4.4/lichee/out/android/common/buildroot/external-toolchain/bin/arm-linux-gnueabi-
+KSRC := /home/android_sdk/Allwinner/a20/kitkat-a20_v4.4/lichee/linux-3.4
+endif
+
+ifeq ($(CONFIG_PLATFORM_ARM_SUN8I), y)
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_ARM_SUN8I
+EXTRA_CFLAGS += -DCONFIG_TRAFFIC_PROTECT
 # default setting for Android 4.1, 4.2
 EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
 EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
 EXTRA_CFLAGS += -DCONFIG_P2P_IPS
+
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+ifeq ($(CONFIG_USB_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_USE_USB_BUFFER_ALLOC_TX
+_PLATFORM_FILES += platform/platform_ARM_SUNxI_usb.o
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+_PLATFORM_FILES += platform/platform_ARM_SUNnI_sdio.o
+endif
+
 ARCH := arm
-CROSS_COMPILE := arm-none-linux-gnueabi-
-KVER  := 3.3.0
-#KSRC:= ../lichee/linux-3.3/
+CROSS_COMPILE := /home/android_sdk/Allwinner/a23/android-jb42/lichee/out/android/common/buildroot/external-toolchain/bin/arm-linux-gnueabi-
+KVER  := 3.4.39
+KSRC :=/home/android_sdk/Allwinner/a23/android-jb42/lichee/linux-3.4
 endif
 
 ifeq ($(CONFIG_PLATFORM_ACTIONS_ATV5201), y)
@@ -960,6 +1197,44 @@ KVER  := $(KERNEL_VER)
 KSRC:= $(CFGDIR)/../../kernel/linux-$(KERNEL_VER)
 endif
 
+ifeq ($(CONFIG_PLATFORM_ARM_RTD299X), y)
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DUSB_XMITBUF_ALIGN_SZ=1024 -DUSB_PACKET_OFFSET_SZ=0
+#ARCH, CROSS_COMPILE, KSRC,and  MODDESTDIR are provided by external makefile
+INSTALL_PREFIX :=
+endif
+
+# Platfrom setting
+ifeq ($(CONFIG_PLATFORM_ARM_SPREADTRUM_6820), y)
+ifeq ($(CONFIG_ANDROID_2X), y)
+EXTRA_CFLAGS += -DANDROID_2X
+endif
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_SPRD
+EXTRA_CFLAGS += -DPLATFORM_SPREADTRUM_6820
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+ifeq ($(RTL871X), rtl8188e)
+EXTRA_CFLAGS += -DSOFTAP_PS_DURATION=50
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+_PLATFORM_FILES += platform/platform_sprd_sdio.o
+endif
+endif
+
+ifeq ($(CONFIG_PLATFORM_ARM_SPREADTRUM_8810), y)
+ifeq ($(CONFIG_ANDROID_2X), y)
+EXTRA_CFLAGS += -DANDROID_2X
+endif
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_SPRD
+EXTRA_CFLAGS += -DPLATFORM_SPREADTRUM_8810
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+ifeq ($(RTL871X), rtl8188e)
+EXTRA_CFLAGS += -DSOFTAP_PS_DURATION=50
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+_PLATFORM_FILES += platform/platform_sprd_sdio.o
+endif
+endif
 
 ifeq ($(CONFIG_MULTIDRV), y)	
 
@@ -1005,7 +1280,10 @@ rtk_core :=	core/rtw_cmd.o \
 		core/rtw_tdls.o \
 		core/rtw_br_ext.o \
 		core/rtw_iol.o \
-		core/rtw_sreset.o\
+		core/rtw_sreset.o \
+		core/rtw_btcoex.o \
+		core/rtw_beamforming.o \
+		core/rtw_odm.o \
 		core/efuse/rtw_efuse.o
 
 $(MODULE_NAME)-y += $(rtk_core)
@@ -1018,6 +1296,7 @@ $(MODULE_NAME)-$(CONFIG_WAPI_SUPPORT) += core/rtw_wapi.o	\
 $(MODULE_NAME)-y += $(_OS_INTFS_FILES)
 $(MODULE_NAME)-y += $(_HAL_INTFS_FILES)
 $(MODULE_NAME)-y += $(_OUTSRC_FILES)
+$(MODULE_NAME)-y += $(_PLATFORM_FILES)
 
 $(MODULE_NAME)-$(CONFIG_MP_INCLUDED) += core/rtw_mp.o \
 					core/rtw_mp_ioctl.o
@@ -1028,12 +1307,15 @@ endif
 ifeq ($(CONFIG_RTL8723B), y)
 $(MODULE_NAME)-$(CONFIG_MP_INCLUDED)+= core/rtw_bt_mp.o
 endif
+ifeq ($(CONFIG_RTL8821A), y)
+$(MODULE_NAME)-$(CONFIG_MP_INCLUDED)+= core/rtw_bt_mp.o
+endif
 
-obj-$(CONFIG_RTL8812AU_8821AU) := $(MODULE_NAME).o
+obj-$(CONFIG_RTL8821AU) := $(MODULE_NAME).o
 
 else
 
-export CONFIG_RTL8812AU_8821AU = m
+export CONFIG_RTL8821AU = m
 
 all: modules
 
@@ -1055,6 +1337,7 @@ config_r:
 	@echo "make config"
 	/bin/bash script/Configure script/config.in
 
+
 .PHONY: modules clean
 
 clean:
@@ -1068,6 +1351,7 @@ clean:
 	cd core ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko
 	cd os_dep/linux ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko
 	cd os_dep ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko
+	cd platform ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko
 	rm -fr Module.symvers ; rm -fr Module.markers ; rm -fr modules.order
 	rm -fr *.mod.c *.mod *.o .*.cmd *.ko *~
 	rm -fr .tmp_versions

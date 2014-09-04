@@ -22,7 +22,7 @@
 #ifndef __INC_TC_RF_HW_IMG_8821A_H
 #define __INC_TC_RF_HW_IMG_8821A_H
 
-static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
+//static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
 
 /******************************************************************************
 *                           RadioA.TXT
@@ -61,11 +61,29 @@ ODM_ReadAndConfig_TC_8821A_TxPowerTrack_USB( // TC: Test Chip, MP: MP Chip
 );
 
 /******************************************************************************
-*                           TXPWR_LMT.TXT
+*                           TXPWR_LMT_8811AU_FEM.TXT
 ******************************************************************************/
 
 void
-ODM_ReadAndConfig_TC_8821A_TXPWR_LMT( // TC: Test Chip, MP: MP Chip
+ODM_ReadAndConfig_TC_8821A_TXPWR_LMT_8811AU_FEM( // TC: Test Chip, MP: MP Chip
+	IN   PDM_ODM_T  pDM_Odm
+);
+
+/******************************************************************************
+*                           TXPWR_LMT_8811AU_IPA.TXT
+******************************************************************************/
+
+void
+ODM_ReadAndConfig_TC_8821A_TXPWR_LMT_8811AU_IPA( // TC: Test Chip, MP: MP Chip
+	IN   PDM_ODM_T  pDM_Odm
+);
+
+/******************************************************************************
+*                           TXPWR_LMT_8821A.TXT
+******************************************************************************/
+
+void
+ODM_ReadAndConfig_TC_8821A_TXPWR_LMT_8821A( // TC: Test Chip, MP: MP Chip
 	IN   PDM_ODM_T  pDM_Odm
 );
 

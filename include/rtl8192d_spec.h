@@ -41,7 +41,7 @@
 #define REG_HMEBOX_EXT_1			0x008A
 #define REG_HMEBOX_EXT_2			0x008C
 #define REG_HMEBOX_EXT_3			0x008E
-#define REG_MAC_PHY_CTRL_NORMAL	0x00F8
+//#define REG_MAC_PHY_CTRL_NORMAL	0x00F8
 #define REG_MAC0                                	0x0081
 #define REG_MAC1                                	0x0053
 #define FW_MAC0_ready                      	0x18
@@ -101,9 +101,8 @@
 
 
 #ifdef CONFIG_PCI_HCI
-#define RT_IBSS_INT_MASKS				(IMR_BcnInt | IMR_TBDOK | IMR_TBDER)
+#define RT_BCN_INT_MASKS				(IMR_BcnInt | IMR_TBDOK | IMR_TBDER)
 #define RT_AC_INT_MASKS				(IMR_VIDOK | IMR_VODOK | IMR_BEDOK|IMR_BKDOK)
-#define RT_BSS_INT_MASKS				(RT_IBSS_INT_MASKS)
 #endif
 
 //========================================================

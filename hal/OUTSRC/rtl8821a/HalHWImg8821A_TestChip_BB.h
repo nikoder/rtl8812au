@@ -22,7 +22,7 @@
 #ifndef __INC_TC_BB_HW_IMG_8821A_H
 #define __INC_TC_BB_HW_IMG_8821A_H
 
-static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
+//static BOOLEAN CheckCondition(const u4Byte Condition, const u4Byte Hex);
 
 /******************************************************************************
 *                           AGC_TAB.TXT
@@ -48,6 +48,24 @@ ODM_ReadAndConfig_TC_8821A_PHY_REG( // TC: Test Chip, MP: MP Chip
 
 void
 ODM_ReadAndConfig_TC_8821A_PHY_REG_PG( // TC: Test Chip, MP: MP Chip
+	IN   PDM_ODM_T  pDM_Odm
+);
+
+/******************************************************************************
+*                           PHY_REG_PG_DNI.TXT
+******************************************************************************/
+
+void
+ODM_ReadAndConfig_TC_8821A_PHY_REG_PG_DNI( // TC: Test Chip, MP: MP Chip
+	IN   PDM_ODM_T  pDM_Odm
+);
+
+/******************************************************************************
+*                           PHY_REG_PG_Sercomm.TXT
+******************************************************************************/
+
+void
+ODM_ReadAndConfig_TC_8821A_PHY_REG_PG_Sercomm( // TC: Test Chip, MP: MP Chip
 	IN   PDM_ODM_T  pDM_Odm
 );
 

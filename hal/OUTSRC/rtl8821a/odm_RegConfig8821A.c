@@ -132,6 +132,9 @@ odm_ConfigBB_AGC_8821A(
 void
 odm_ConfigBB_PHY_REG_PG_8821A(
 	IN 	PDM_ODM_T 	pDM_Odm,
+	IN	u4Byte		Band,
+	IN	u4Byte		RfPath,
+	IN	u4Byte		TxNum,
     IN 	u4Byte 		Addr,
     IN 	u4Byte 		Bitmask,
     IN 	u4Byte 		Data
@@ -154,10 +157,10 @@ odm_ConfigBB_PHY_REG_PG_8821A(
 	else if (Addr == 0xf9)
 		ODM_delay_us(1);
 
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("===> @@@@@@@ ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X %08X\n", Addr, Bitmask, Data));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("===> ODM_ConfigBBWithHeaderFile: [PHY_REG] %08X %08X %08X\n", Addr, Bitmask, Data));
 
 #if	!(DM_ODM_SUPPORT_TYPE&ODM_AP)
-	storePwrIndexDiffRateOffset(pDM_Odm->Adapter, Addr, Bitmask, Data);
+	PHY_StoreTxPowerByRate(pDM_Odm->Adapter, Band, RfPath, TxNum, Addr, Bitmask, Data);
 #endif
 
 }
@@ -207,8 +210,11 @@ odm_ConfigBB_TXPWR_LMT_8821A(
 	IN	pu1Byte		PowerLimit
     )
 {   
-#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-	PHY_SetPowerLimitTableValue(pDM_Odm, Regulation, Band,
+#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
+	PHY_SetTxPowerLimit(pDM_Odm, Regulation, Band,
+		Bandwidth, RateSection, RfPath, Channel, PowerLimit);
+#elif (DM_ODM_SUPPORT_TYPE & (ODM_CE))
+	PHY_SetTxPowerLimit(pDM_Odm->Adapter, Regulation, Band,
 		Bandwidth, RateSection, RfPath, Channel, PowerLimit);
 #endif
 }

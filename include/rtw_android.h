@@ -45,7 +45,7 @@ enum ANDROID_WIFI_CMD {
 	ANDROID_WIFI_CMD_P2P_GET_NOA,	
 	ANDROID_WIFI_CMD_P2P_SET_PS,	
 	ANDROID_WIFI_CMD_SET_AP_WPS_P2P_IE,
-#ifdef PNO_SUPPORT
+#ifdef CONFIG_PNO_SUPPORT
 	ANDROID_WIFI_CMD_PNOSSIDCLR_SET,
 	ANDROID_WIFI_CMD_PNOSETUP_SET,
 	ANDROID_WIFI_CMD_PNOENABLE_SET,
@@ -62,12 +62,25 @@ enum ANDROID_WIFI_CMD {
 	ANDROID_WIFI_CMD_WFD_SET_TCPPORT,
 	ANDROID_WIFI_CMD_WFD_SET_MAX_TPUT,
 	ANDROID_WIFI_CMD_WFD_SET_DEVTYPE,
-
+	ANDROID_WIFI_CMD_CHANGE_DTIM,
+	ANDROID_WIFI_CMD_HOSTAPD_SET_MACADDR_ACL,
+	ANDROID_WIFI_CMD_HOSTAPD_ACL_ADD_STA,
+	ANDROID_WIFI_CMD_HOSTAPD_ACL_REMOVE_STA,
+#ifdef CONFIG_GTK_OL
+	ANDROID_WIFI_CMD_GTK_REKEY_OFFLOAD,
+#endif //CONFIG_GTK_OL
+	ANDROID_WIFI_CMD_P2P_DISABLE,
 	ANDROID_WIFI_CMD_MAX
 };
 
 int rtw_android_cmdstr_to_num(char *cmdstr);
 int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd);
+
+#if defined(CONFIG_PNO_SUPPORT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+int rtw_android_pno_enable(struct net_device *net, int pno_enable);
+int rtw_android_cfg80211_pno_setup(struct net_device *net,
+		struct cfg80211_ssid *ssid, int n_ssids, int interval);
+#endif
 
 #if defined(RTW_ENABLE_WIFI_CONTROL_FUNC)
 int rtw_android_wifictrl_func_add(void);

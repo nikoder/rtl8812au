@@ -42,7 +42,7 @@
 		#elif defined(CONFIG_SDIO_HCI)
 			#define NR_RECVBUFF (8)	
 		#else
-			#define NR_RECVBUFF (4)
+			#define NR_RECVBUFF (8)
 		#endif	
 	#endif //CONFIG_SINGLE_RECV_BUF
 
@@ -136,6 +136,41 @@ struct signal_stat {
 	u32	total_num;		//num of valid elements
 	u32	total_val;		//sum of valid elements	
 };
+/*
+typedef struct _ODM_Phy_Status_Info_
+{
+	//
+	// Be care, if you want to add any element please insert between 
+	// RxPWDBAll & SignalStrength.
+	//
+#if (DM_ODM_SUPPORT_TYPE &  (ODM_WIN))
+	u4Byte		RxPWDBAll;	
+#else
+	u1Byte		RxPWDBAll;	
+#endif
+
+	u1Byte		SignalQuality;	 		// in 0-100 index. 
+	s1Byte		RxMIMOSignalQuality[4];	//per-path's EVM
+	u1Byte		RxMIMOEVMdbm[4]; 		//per-path's EVM dbm
+
+	u1Byte		RxMIMOSignalStrength[4];// in 0~100 index
+
+	u2Byte		Cfo_short[4]; 			// per-path's Cfo_short
+	u2Byte		Cfo_tail[4];			// per-path's Cfo_tail
+	
+#if (DM_ODM_SUPPORT_TYPE &  (ODM_WIN|ODM_CE))
+	s1Byte		RxPower;				// in dBm Translate from PWdB
+	s1Byte		RecvSignalPower;		// Real power in dBm for this packet, no beautification and aggregation. Keep this raw info to be used for the other procedures.
+	u1Byte		BTRxRSSIPercentage;	
+	u1Byte		SignalStrength; 		// in 0-100 index.
+ 
+	u1Byte		RxPwr[4];				//per-path's pwdb
+#endif
+	u1Byte		RxSNR[4];				//per-path's SNR	
+	u1Byte		BandWidth;
+	u1Byte		btCoexPwrAdjust;
+}ODM_PHY_INFO_T,*PODM_PHY_INFO_T;
+*/
 
 struct phy_info
 {		
@@ -155,12 +190,27 @@ struct phy_info
 	u8		BTRxRSSIPercentage;	
 	u8		SignalStrength; // in 0-100 index.
 
-	u8		RxPwr[4];				//per-path's pwdb
+	s8		RxPwr[4];				//per-path's pwdb
 	u8		RxSNR[4];				//per-path's SNR	
 	u8		BandWidth;
 	u8		btCoexPwrAdjust;
 };
 
+#ifdef DBG_RX_SIGNAL_DISPLAY_RAW_DATA
+struct rx_raw_rssi
+{
+	u8 data_rate;
+	u8 pwdball;
+	s8 pwr_all;
+	
+	u8 mimo_singal_strength[4];// in 0~100 index
+	u8 mimo_singal_quality[4];
+	
+	s8 ofdm_pwr[4];
+	u8 ofdm_snr[4];
+
+};
+#endif
 
 struct rx_pkt_attrib	{
 	u16	pkt_len;
@@ -266,6 +316,8 @@ struct rtw_rx_ring {
 };
 #endif
 
+
+
 /*
 accesser of recv_priv: rtw_recv_entry(dispatch / passive level); recv_thread(passive) ; returnpkt(dispatch)
 ; halt(passive) ;
@@ -309,7 +361,6 @@ struct recv_priv
 	u64	rx_bytes;
 	u64	rx_pkts;
 	u64	rx_drop;
-	u64	last_rx_bytes;
 
 	uint  rx_icv_err;
 	uint  rx_largepacket_crcerr;
@@ -370,14 +421,19 @@ struct recv_priv
 	//For display the phy informatiom
 	u8 is_signal_dbg;	// for debug
 	u8 signal_strength_dbg;	// for debug
-	s8 rssi;
-	s8 rxpwdb;
+	
 	u8 signal_strength;
 	u8 signal_qual;
-	u8 noise;
-	int RxSNRdB[2];
-	s8 RxRssi[2];
-	int FalseAlmCnt_all;
+	s8 rssi;	//translate_percentage_to_dbm(ptarget_wlan->network.PhyInfo.SignalStrength);
+	#ifdef DBG_RX_SIGNAL_DISPLAY_RAW_DATA
+	struct rx_raw_rssi raw_rssi_info;
+	#endif
+	//s8 rxpwdb;	
+	u8 noise;	
+	//int RxSNRdB[2];
+	//s8 RxRssi[2];
+	//int FalseAlmCnt_all;
+	
 
 #ifdef CONFIG_NEW_SIGNAL_STAT_PROCESS
 	_timer signal_stat_timer;
