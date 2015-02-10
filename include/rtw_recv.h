@@ -278,7 +278,16 @@ struct rx_pkt_attrib	{
 
 #define RECVBUFF_ALIGN_SZ 8
 
+#if defined (CONFIG_RTL8192E)
+	#ifdef CONFIG_PCI_HCI
+		#define RXDESC_SIZE 16
+		#define RX_WIFI_INFO_SIZE	24
+	#else
+		#define RXDESC_SIZE	24
+	#endif
+#else
 #define RXDESC_SIZE	24
+#endif
 #define RXDESC_OFFSET RXDESC_SIZE
 
 struct recv_stat
@@ -287,10 +296,13 @@ struct recv_stat
 
 	unsigned int rxdw1;
 
+#if !(defined(CONFIG_RTL8192E) && defined(CONFIG_PCI_HCI)) //exclude 8192ee
 	unsigned int rxdw2;
 
 	unsigned int rxdw3;
+#endif
 
+#ifndef BUF_DESC_ARCH
 	unsigned int rxdw4;
 
 	unsigned int rxdw5;
@@ -300,6 +312,7 @@ struct recv_stat
 
 	unsigned int rxdw7;
 #endif
+#endif //if BUF_DESC_ARCH is defined, rx_buf_desc occupy 4 double words
 };
 
 #define EOR BIT(30)
@@ -825,9 +838,14 @@ __inline static s32 translate_percentage_to_dbm(u32 SignalStrengthIndex)
 {
 	s32	SignalPower; // in dBm.
 
+#ifdef CONFIG_SKIP_SIGNAL_SCALE_MAPPING
+	// Translate to dBm (x=y-100)
+	SignalPower = SignalStrengthIndex - 100;
+#else
 	// Translate to dBm (x=0.5y-95).
 	SignalPower = (s32)((SignalStrengthIndex + 1) >> 1); 
 	SignalPower -= 95; 
+#endif
 
 	return SignalPower;
 }

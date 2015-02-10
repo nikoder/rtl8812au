@@ -25,13 +25,6 @@
 extern void indicate_wx_scan_complete_event(_adapter *padapter);
 extern u8 rtw_do_join(_adapter * padapter);
 
-#ifdef CONFIG_DISABLE_MCS13TO15
-extern unsigned char	MCS_rate_2R_MCS13TO15_OFF[16];
-extern unsigned char	MCS_rate_2R[16];
-#else //CONFIG_DISABLE_MCS13TO15
-extern unsigned char	MCS_rate_2R[16];
-#endif //CONFIG_DISABLE_MCS13TO15
-extern unsigned char	MCS_rate_1R[16];
 
 sint	_rtw_init_mlme_priv (_adapter* padapter)
 {
@@ -3845,6 +3838,7 @@ unsigned int rtw_restructure_ht_ie(_adapter *padapter, u8 *in_ie, u8 *out_ie, ui
 	struct registry_priv *pregistrypriv = &padapter->registrypriv;
 	struct mlme_priv	*pmlmepriv = &padapter->mlmepriv;
 	struct ht_priv		*phtpriv = &pmlmepriv->htpriv;
+	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 
 	phtpriv->ht_option = _FALSE;
 
@@ -3918,17 +3912,21 @@ unsigned int rtw_restructure_ht_ie(_adapter *padapter, u8 *in_ie, u8 *out_ie, ui
 		}
 	}
 
+	//fill default supported_mcs_set
+	_rtw_memcpy(ht_capie.supp_mcs_set, pmlmeext->default_supported_mcs_set, 16);
+
+	//update default supported_mcs_set
 	rtw_hal_get_hwreg(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
-#ifdef RTL8192C_RECONFIG_TO_1T1R
-	rf_type = RF_1T1R;
-#endif
-	switch (rf_type) {
+
+	switch(rf_type)
+	{
 	case RF_1T1R:
+		
 		if (stbc_rx_enable)
 			ht_capie.cap_info |= IEEE80211_HT_CAP_RX_STBC_1R;//RX STBC One spatial stream
 
-		_rtw_memcpy(ht_capie.supp_mcs_set, MCS_rate_1R, 16);
-		break;
+	                set_mcs_rate_by_mask(ht_capie.supp_mcs_set, MCS_RATE_1R);			
+			break;
 
 	case RF_2T2R:
 	case RF_1T2R:
@@ -3939,11 +3937,11 @@ unsigned int rtw_restructure_ht_ie(_adapter *padapter, u8 *in_ie, u8 *out_ie, ui
 
 		#ifdef CONFIG_DISABLE_MCS13TO15
 		if(((cbw40_enable == 1) && (operation_bw == CHANNEL_WIDTH_40)) && (pregistrypriv->wifi_spec!=1))
-			_rtw_memcpy(ht_capie.supp_mcs_set, MCS_rate_2R_MCS13TO15_OFF, 16);
+				set_mcs_rate_by_mask(ht_capie.supp_mcs_set, MCS_RATE_2R_13TO15_OFF);	
 		else
-			_rtw_memcpy(ht_capie.supp_mcs_set, MCS_rate_2R, 16);
+				set_mcs_rate_by_mask(ht_capie.supp_mcs_set, MCS_RATE_2R);	
 		#else //CONFIG_DISABLE_MCS13TO15
-		_rtw_memcpy(ht_capie.supp_mcs_set, MCS_rate_2R, 16);
+			set_mcs_rate_by_mask(ht_capie.supp_mcs_set, MCS_RATE_2R);	
 		#endif //CONFIG_DISABLE_MCS13TO15
 		break;
 	}
@@ -3970,7 +3968,12 @@ unsigned int rtw_restructure_ht_ie(_adapter *padapter, u8 *in_ie, u8 *out_ie, ui
 	#endif
 	*/
 
+	if(padapter->driver_rx_ampdu_factor != 0xFF)
+		max_rx_ampdu_factor = (HT_CAP_AMPDU_FACTOR)padapter->driver_rx_ampdu_factor;
+	else
 	rtw_hal_get_def_var(padapter, HW_VAR_MAX_RX_AMPDU_FACTOR, &max_rx_ampdu_factor);
+				
+	//rtw_hal_get_def_var(padapter, HW_VAR_MAX_RX_AMPDU_FACTOR, &max_rx_ampdu_factor);
 	ht_capie.ampdu_params_info = (max_rx_ampdu_factor&0x03);
 
 	if(padapter->securitypriv.dot11PrivacyAlgrthm == _AES_ )
@@ -4105,34 +4108,31 @@ void rtw_update_ht_cap(_adapter *padapter, u8 *pie, uint ie_len, u8 channel)
 		int i;
 		u8	rf_type;
 
-		padapter->HalFunc.GetHwRegHandler(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
+		rtw_hal_get_hwreg(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
+
+		//update the MCS set
+		for (i = 0; i < 16; i++)
+			pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= pmlmeext->default_supported_mcs_set[i];
 
 		//update the MCS rates
-		for (i = 0; i < 16; i++)
+		switch(rf_type)
 		{
-			if((rf_type == RF_1T1R) || (rf_type == RF_1T2R))
-			{
-				pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_1R[i];
-			}
-			else
-			{
-				#ifdef CONFIG_DISABLE_MCS13TO15
-				if(pmlmeext->cur_bwmode == CHANNEL_WIDTH_40 && pregistrypriv->wifi_spec != 1 )
-				{
-					pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_2R_MCS13TO15_OFF[i];
-				}
+			case RF_1T1R:
+			case RF_1T2R:
+				set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_1R);							
+				break;
+			case RF_2T2R:			
+			default:
+#ifdef CONFIG_DISABLE_MCS13TO15
+				if(pmlmeext->cur_bwmode == CHANNEL_WIDTH_40 && pregistrypriv->wifi_spec != 1 )				
+					set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_2R_13TO15_OFF);				
 				else
-					pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_2R[i];
-				#else
-				pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_2R[i];
-				#endif //CONFIG_DISABLE_MCS13TO15
-			}
-			#ifdef RTL8192C_RECONFIG_TO_1T1R
-			{
-				pmlmeinfo->HT_caps.HT_cap_element.MCS_rate[i] &= MCS_rate_1R[i];
-			}
-			#endif
+					set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_2R);
+#else //CONFIG_DISABLE_MCS13TO15
+				set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_2R);
+#endif //CONFIG_DISABLE_MCS13TO15
 		}
+
 		//switch to the 40M Hz mode accoring to the AP
 		//pmlmeext->cur_bwmode = CHANNEL_WIDTH_40;
 		switch ((pmlmeinfo->HT_info.infos[0] & 0x3))

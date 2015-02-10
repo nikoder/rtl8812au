@@ -1388,9 +1388,17 @@ halbtc8723b2ant_SetAntPath(
 		pBtCoexist->fBtcWrite1Byte(pBtCoexist, 0x930, 0x77);
 		pBtCoexist->fBtcWrite1ByteBitMask(pBtCoexist, 0x67, 0x20, 0x1);
 
+		if(fwVer >= 0x180000)
+		{
 		/* Use H2C to set GNT_BT to LOW */
 		H2C_Parameter[0] = 0;
 		pBtCoexist->fBtcFillH2c(pBtCoexist, 0x6E, 1, H2C_Parameter);
+		}
+		else
+		{
+			pBtCoexist->fBtcWrite1Byte(pBtCoexist, 0x765, 0x0);
+		}
+		
 		pBtCoexist->fBtcWrite4Byte(pBtCoexist, 0x948, 0x0);
 
 		pBtCoexist->fBtcSetRfReg(pBtCoexist, BTC_RF_A, 0x1, 0xfffff, 0x0); //WiFi TRx Mask off
@@ -1419,7 +1427,6 @@ halbtc8723b2ant_SetAntPath(
 		}
 		pBtCoexist->fBtcFillH2c(pBtCoexist, 0x65, 2, H2C_Parameter);
 	}
-
 
 	// ext switch setting
 	if(bUseExtSwitch)
@@ -3516,20 +3523,29 @@ halbtc8723b2ant_WifiOffHwCfg(
 	)
 {
 	BOOLEAN	bIsInMpMode = FALSE;
-	PADAPTER padapter=pBtCoexist->Adapter;
 	u1Byte H2C_Parameter[2] ={0};
+	u4Byte fwVer=0;
+
+	pBtCoexist->fBtcGet(pBtCoexist, BTC_GET_U4_WIFI_FW_VER, &fwVer);	// [31:16]=fw ver, [15:0]=fw sub ver
 
 	// set wlan_act to low
 	pBtCoexist->fBtcWrite1Byte(pBtCoexist, 0x76e, 0x4);
 
 	pBtCoexist->fBtcSetRfReg(pBtCoexist, BTC_RF_A, 0x1, 0xfffff, 0x780); //WiFi goto standby while GNT_BT 0-->1
         
+	if(fwVer >= 0x180000)
+	{
 	/* Use H2C to set GNT_BT to HIGH */
 	H2C_Parameter[0] = 1;
 	pBtCoexist->fBtcFillH2c(pBtCoexist, 0x6E, 1, H2C_Parameter);
+	}
+	else
+	{
+		pBtCoexist->fBtcWrite1Byte(pBtCoexist, 0x765, 0x18);
+	}
 	
 	pBtCoexist->fBtcGet(pBtCoexist, BTC_GET_BL_WIFI_IS_IN_MP_MODE, &bIsInMpMode);
-	if (bIsInMpMode == FALSE)	
+	if(!bIsInMpMode)
 		pBtCoexist->fBtcWrite1ByteBitMask(pBtCoexist, 0x67, 0x20, 0x0); //BT select s0/s1 is controlled by BT
 	else
 		pBtCoexist->fBtcWrite1ByteBitMask(pBtCoexist, 0x67, 0x20, 0x1); //BT select s0/s1 is controlled by WiFi
@@ -3578,6 +3594,13 @@ halbtc8723b2ant_InitHwConfig(
 //============================================================
 // extern function start with EXhalbtc8723b2ant_
 //============================================================
+VOID
+EXhalbtc8723b2ant_PowerOnSetting(
+	IN	PBTC_COEXIST		pBtCoexist
+	)
+{
+}
+
 VOID
 EXhalbtc8723b2ant_InitHwConfig(
 	IN	PBTC_COEXIST		pBtCoexist,

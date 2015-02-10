@@ -204,6 +204,9 @@ typedef enum _FIRMWARE_SOURCE {
 #define PageNum(_Len, _Size)		(u32)(((_Len)/(_Size)) + ((_Len)&((_Size) - 1) ? 1:0))
 
 
+u8 rtw_hal_data_init(_adapter *padapter);
+void rtw_hal_data_deinit(_adapter *padapter);
+
 void dump_chip_info(HAL_VERSION	ChipVersion);
 
 u8	//return the final channel plan decision

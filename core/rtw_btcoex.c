@@ -299,7 +299,8 @@ void rtw_btcoex_RejectApAggregatedPacket(PADAPTER padapter, u8 enable)
 	if (_TRUE == enable)
 	{
 		pmlmeinfo->bAcceptAddbaReq = _FALSE;
-		send_delba(padapter, 0, psta->hwaddr);
+		if (psta)
+			send_delba(padapter, 0, psta->hwaddr);
 	}
 	else
 	{

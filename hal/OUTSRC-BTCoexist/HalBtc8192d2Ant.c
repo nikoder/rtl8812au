@@ -1713,6 +1713,13 @@ halbtc8192d2ant_IsBtCoexistEnter(
 // extern function start with EXhalbtc8192d2ant_
 //============================================================
 VOID
+EXhalbtc8192d2ant_PowerOnSetting(
+	IN	PBTC_COEXIST		pBtCoexist
+	)
+{
+}
+
+VOID
 EXhalbtc8192d2ant_InitHwConfig(
 	IN	PBTC_COEXIST		pBtCoexist,
 	IN	BOOLEAN				bWifiOnly

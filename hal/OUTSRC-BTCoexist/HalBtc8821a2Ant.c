@@ -3509,6 +3509,13 @@ halbtc8821a2ant_RunCoexistMechanism(
 // extern function start with EXhalbtc8821a2ant_
 //============================================================
 VOID
+EXhalbtc8821a2ant_PowerOnSetting(
+	IN	PBTC_COEXIST		pBtCoexist
+	)
+{
+}
+
+VOID
 EXhalbtc8821a2ant_InitHwConfig(
 	IN	PBTC_COEXIST		pBtCoexist,
 	IN	BOOLEAN				bWifiOnly

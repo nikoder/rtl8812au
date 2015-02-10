@@ -292,7 +292,7 @@ s32 init_mp_priv(PADAPTER padapter)
 	pmppriv->tx.stop = 1;
 	pmppriv->bSetTxPower=0;		//for  manually set tx power
 	pmppriv->bTxBufCkFail=_FALSE;
-	pmppriv->pktInterval=300;
+	pmppriv->pktInterval=1;
 	
 	mp_init_xmit_attrib(&pmppriv->tx, padapter);
 
@@ -550,7 +550,7 @@ MPT_InitializeAdapter(
 	
 	PHY_LCCalibrate(pAdapter);
 	PHY_IQCalibrate(pAdapter, _FALSE);
-	dm_CheckTXPowerTracking(&pHalData->odmpriv);	//trigger thermal meter
+	//dm_CheckTXPowerTracking(&pHalData->odmpriv);	//trigger thermal meter
 	
 	PHY_SetRFPathSwitch(pAdapter, 1/*pHalData->bDefaultAntenna*/); //default use Main
 	
@@ -560,6 +560,8 @@ MPT_InitializeAdapter(
 #ifdef CONFIG_RTL8188E
 	pMptCtx->backup0x52_RF_A = (u1Byte)PHY_QueryRFReg(pAdapter, RF_PATH_A, RF_0x52, 0x000F0);
 	pMptCtx->backup0x52_RF_B = (u1Byte)PHY_QueryRFReg(pAdapter, RF_PATH_A, RF_0x52, 0x000F0);
+	rtw_write32(pAdapter, REG_MACID_NO_LINK_0, 0x0);
+	rtw_write32(pAdapter, REG_MACID_NO_LINK_1, 0x0);
 #endif
 
 	//set ant to wifi side in mp mode
@@ -679,9 +681,9 @@ static void disable_dm(PADAPTER padapter)
 #endif
 	Switch_DM_Func(padapter, DYNAMIC_RF_CALIBRATION, _TRUE);
 
-#ifdef CONFIG_BT_COEXIST
-	rtw_btcoex_Switch(padapter, 0);
-#endif
+//#ifdef CONFIG_BT_COEXIST
+//	rtw_btcoex_Switch(padapter, 0); //remove for BT MP Down.
+//#endif
 }
 
 
@@ -691,8 +693,8 @@ void MPT_PwrCtlDM(PADAPTER padapter, u32 bstart)
 	struct dm_priv	*pdmpriv = &pHalData->dmpriv;
 	PDM_ODM_T		pDM_Odm = &pHalData->odmpriv;
 
-	//Switch_DM_Func(padapter, DYNAMIC_RF_CALIBRATION, bstart);
 	if (bstart==1){
+		ODM_ClearTxPowerTrackingState(pDM_Odm);	
 		DBG_871X("in MPT_PwrCtlDM start \n");		
 		Switch_DM_Func(padapter, DYNAMIC_RF_TX_PWR_TRACK, _TRUE);
 		pdmpriv->InitODMFlag |= ODM_RF_TX_PWR_TRACK ;
@@ -726,7 +728,7 @@ u32 mp_join(PADAPTER padapter,u8 mode)
 	struct wlan_network *tgt_network = &pmlmepriv->cur_network;
 	_adapter				*pbuddyadapter = padapter->pbuddy_adapter;
 	struct mlme_priv *pbuddymlmepriv = &pbuddyadapter->mlmepriv;
-	
+
 	// 1. initialize a new WLAN_BSSID_EX
 	_rtw_memset(&bssid, 0, sizeof(WLAN_BSSID_EX));
 	DBG_8192C("%s ,pmppriv->network_macaddr=%x %x %x %x %x %x \n",__func__,
@@ -779,12 +781,6 @@ u32 mp_join(PADAPTER padapter,u8 mode)
 		RT_TRACE(_module_mp_, _drv_notice_, ("+start mp in normal mode\n"));
 	}
 #endif
-		_clr_fwstate_(pmlmepriv, _FW_UNDER_SURVEY);
-		_clr_fwstate_(pmlmepriv, _FW_UNDER_LINKING);
-		_clr_fwstate_(pmlmepriv, _FW_LINKED);
-		_clr_fwstate_(pbuddymlmepriv, _FW_UNDER_SURVEY);
-		_clr_fwstate_(pbuddymlmepriv, _FW_UNDER_LINKING);
-		_clr_fwstate_(pbuddymlmepriv, _FW_LINKED);
 
 	set_fwstate(pmlmepriv, _FW_UNDER_LINKING);
 	set_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE);
@@ -1280,7 +1276,7 @@ static thread_return mp_xmit_packet_thread(thread_context context)
 		_rtw_memcpy(&(pxmitframe->attrib), &(pmptx->attrib), sizeof(struct pkt_attrib));
 
 		
-		rtw_udelay_os(padapter->mppriv.pktInterval);
+		rtw_usleep_os(padapter->mppriv.pktInterval);
 		dump_mpframe(padapter, pxmitframe);
 		
 		pmptx->sended++;
@@ -1545,7 +1541,7 @@ void fill_tx_desc_8723b(PADAPTER padapter)
 static void Rtw_MPSetMacTxEDCA(PADAPTER padapter)
 {
 
-	rtw_write32(padapter, 0x508 , 0x00a43f); //Disable EDCA BE Txop for MP pkt tx adjust Packet interval
+	rtw_write32(padapter, 0x508 , 0x00a422); //Disable EDCA BE Txop for MP pkt tx adjust Packet interval
 	//DBG_871X("%s:write 0x508~~~~~~ 0x%x\n", __func__,rtw_read32(padapter, 0x508));
 	PHY_SetMacReg(padapter, 0x458 ,bMaskDWord , 0x0);
 	//DBG_8192C("%s()!!!!! 0x460 = 0x%x\n" ,__func__,PHY_QueryBBReg(padapter, 0x460, bMaskDWord));

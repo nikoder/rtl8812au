@@ -28,8 +28,8 @@ CONFIG_RTL8192C = n
 CONFIG_RTL8192D = n
 CONFIG_RTL8723A = n
 CONFIG_RTL8188E = n
-CONFIG_RTL8812A = n
-CONFIG_RTL8821A = y
+CONFIG_RTL8812A = y
+CONFIG_RTL8821A = n
 CONFIG_RTL8192E = n
 CONFIG_RTL8723B = n
 ######################### Interface ###########################
@@ -54,6 +54,7 @@ CONFIG_LOAD_PHY_PARA_FROM_FILE = y
 CONFIG_CALIBRATE_TX_POWER_BY_REGULATORY = n
 CONFIG_CALIBRATE_TX_POWER_TO_MAX = n
 CONFIG_ODM_ADAPTIVITY = n
+CONFIG_SKIP_SIGNAL_SCALE_MAPPING = n
 ######################## Wake On Lan ##########################
 CONFIG_WOWLAN = n
 CONFIG_GPIO_WAKEUP = n
@@ -104,6 +105,7 @@ CONFIG_PLATFORM_ACTIONS_ATV5201 = n
 CONFIG_PLATFORM_ARM_RTD299X = n
 CONFIG_PLATFORM_ARM_SPREADTRUM_6820 = n
 CONFIG_PLATFORM_ARM_SPREADTRUM_8810 = n
+CONFIG_PLATFORM_ARM_WMT = n
 ###############################################################
 
 CONFIG_DRVEXT_MODULE = n
@@ -165,8 +167,12 @@ _OUTSRC_FILES := hal/OUTSRC/odm_debug.o	\
 		hal/OUTSRC/odm_interface.o\
 		hal/OUTSRC/odm_HWConfig.o\
 		hal/OUTSRC/odm.o\
-		hal/OUTSRC/HalPhyRf.o
-
+		hal/OUTSRC/HalPhyRf.o\
+		hal/OUTSRC/odm_EdcaTurboCheck.o\
+		hal/OUTSRC/odm_DIG.o\
+		hal/OUTSRC/odm_PathDiv.o\
+		hal/OUTSRC/odm_DynamicBBPowerSaving.o
+		
 EXTRA_CFLAGS += -I$(src)/platform
 _PLATFORM_FILES := platform/platform_ops.o
 
@@ -715,6 +721,10 @@ ifeq ($(CONFIG_ODM_ADAPTIVITY), y)
 EXTRA_CFLAGS += -DCONFIG_ODM_ADAPTIVITY
 endif
 
+ifeq ($(CONFIG_SKIP_SIGNAL_SCALE_MAPPING), y)
+EXTRA_CFLAGS += -DCONFIG_SKIP_SIGNAL_SCALE_MAPPING
+endif
+
 ifeq ($(CONFIG_WOWLAN), y)
 EXTRA_CFLAGS += -DCONFIG_WOWLAN
 ifeq ($(CONFIG_SDIO_HCI), y)
@@ -1184,9 +1194,12 @@ _PLATFORM_FILES += platform/platform_ARM_SUNnI_sdio.o
 endif
 
 ARCH := arm
-CROSS_COMPILE := /home/android_sdk/Allwinner/a23/android-jb42/lichee/out/android/common/buildroot/external-toolchain/bin/arm-linux-gnueabi-
-KVER  := 3.4.39
-KSRC :=/home/android_sdk/Allwinner/a23/android-jb42/lichee/linux-3.4
+# ===Cross compile setting for Android 4.2 SDK ===
+#CROSS_COMPILE := /home/android_sdk/Allwinner/a23/android-jb42/lichee/out/android/common/buildroot/external-toolchain/bin/arm-linux-gnueabi-
+#KSRC :=/home/android_sdk/Allwinner/a23/android-jb42/lichee/linux-3.4
+# ===Cross compile setting for Android 4.4 SDK ===
+CROSS_COMPILE := /home/android_sdk/Allwinner/a23/android-kk44/lichee/out/android/common/buildroot/external-toolchain/bin/arm-linux-gnueabi-
+KSRC :=/home/android_sdk/Allwinner/a23/android-kk44/lichee/linux-3.4
 endif
 
 ifeq ($(CONFIG_PLATFORM_ACTIONS_ATV5201), y)
@@ -1234,6 +1247,20 @@ ifeq ($(CONFIG_SDIO_HCI), y)
 EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
 _PLATFORM_FILES += platform/platform_sprd_sdio.o
 endif
+endif
+
+ifeq ($(CONFIG_PLATFORM_ARM_WMT), y)
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+ifeq ($(CONFIG_SDIO_HCI), y)
+_PLATFORM_FILES += platform/platform_ARM_WMT_sdio.o
+endif
+ARCH := arm
+CROSS_COMPILE := /home/android_sdk/WonderMedia/wm8880-android4.4/toolchain/arm_201103_gcc4.5.2/mybin/arm_1103_le-
+KSRC := /home/android_sdk/WonderMedia/wm8880-android4.4/kernel4.4/
+MODULE_NAME :=8189es_kk
 endif
 
 ifeq ($(CONFIG_MULTIDRV), y)	
@@ -1311,11 +1338,11 @@ ifeq ($(CONFIG_RTL8821A), y)
 $(MODULE_NAME)-$(CONFIG_MP_INCLUDED)+= core/rtw_bt_mp.o
 endif
 
-obj-$(CONFIG_RTL8821AU) := $(MODULE_NAME).o
+obj-$(CONFIG_RTL8812AU) := $(MODULE_NAME).o
 
 else
 
-export CONFIG_RTL8821AU = m
+export CONFIG_RTL8812AU = m
 
 all: modules
 

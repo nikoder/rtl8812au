@@ -1672,10 +1672,7 @@ SetFwRelatedForWoWLAN8812(
 static void rtl8812_free_hal_data(PADAPTER padapter)
 {
 _func_enter_;
-	if (padapter->HalData) {
-		rtw_vmfree(padapter->HalData, sizeof(HAL_DATA_TYPE));
-		padapter->HalData = NULL;
-	}
+	
 _func_exit_;
 }
 
@@ -2067,7 +2064,7 @@ Hal_EfuseParseBTCoexistInfo8812A(
 #ifdef CONFIG_BT_COEXIST
 	rtw_btcoex_SetBTCoexist(Adapter, pHalData->EEPROMBluetoothCoexist);
 	rtw_btcoex_SetChipType(Adapter, pHalData->EEPROMBluetoothType);
-	rtw_btcoex_SetPGAntNum(Adapter, pHalData->EEPROMBluetoothAntNum==Ant_x2?2:1);
+	rtw_btcoex_SetPGAntNum(Adapter, pHalData->EEPROMBluetoothAntNum==Ant_x2?2:1, _FALSE);
 #endif /* CONFIG_BT_COEXIST */
 }
 
@@ -5903,37 +5900,46 @@ _func_enter_;
 			break;
 
 		case HW_VAR_BASIC_RATE:
+		{
+			struct mlme_ext_info *mlmext_info = &padapter->mlmeextpriv.mlmext_info;
+			u16 input_b = 0, masked = 0, ioted = 0, BrateCfg = 0;
+			u16 rrsr_2g_force_mask = (RRSR_11M|RRSR_5_5M|RRSR_1M);
+			u16 rrsr_2g_allow_mask = (RRSR_24M|RRSR_12M|RRSR_6M|RRSR_CCK_RATES);
+			u16 rrsr_5g_force_mask = (RRSR_6M);
+			u16 rrsr_5g_allow_mask = (RRSR_OFDM_RATES);
+
+			HalSetBrateCfg(padapter, pval, &BrateCfg);
+			input_b = BrateCfg;
+
+			/* apply force and allow mask */
+			if(pHalData->CurrentBandType == BAND_ON_2_4G)
 			{
-				u16 BrateCfg = 0;
-				u8 RateIndex = 0;
-
-				// 2007.01.16, by Emily
-				// Select RRSR (in Legacy-OFDM and CCK)
-				// For 8190, we select only 24M, 12M, 6M, 11M, 5.5M, 2M, and 1M from the Basic rate.
-				// We do not use other rates.
-				HalSetBrateCfg(padapter, pval, &BrateCfg);
-
-				if(pHalData->CurrentBandType == BAND_ON_2_4G)
-				{
-					//CCK 2M ACK should be disabled for some BCM and Atheros AP IOT
-					//because CCK 2M has poor TXEVM
-					//CCK 5.5M & 11M ACK should be enabled for better performance
-
-					pHalData->BasicRateSet = BrateCfg = (BrateCfg |0xd) & 0x15d;
-					BrateCfg |= 0x01; // default enable 1M ACK rate
-				}
-				else // 5G
-				{
-					pHalData->BasicRateSet &= 0xFF0;
-					BrateCfg |= 0x10; // default enable 6M ACK rate
-				}
-//				DBG_8192C("HW_VAR_BASIC_RATE: BrateCfg(%#x)\n", BrateCfg);
-
-				// Set RRSR rate table.
-				rtw_write8(padapter, REG_RRSR, BrateCfg&0xff);
-				rtw_write8(padapter, REG_RRSR+1, (BrateCfg>>8)&0xff);
-				rtw_write8(padapter, REG_RRSR+2, rtw_read8(padapter, REG_RRSR+2)&0xf0);
+				BrateCfg |= rrsr_2g_force_mask;
+				BrateCfg &= rrsr_2g_allow_mask;
 			}
+			else // 5G
+			{
+				BrateCfg |= rrsr_5g_force_mask;
+				BrateCfg &= rrsr_5g_allow_mask;
+			}
+			masked = BrateCfg;
+
+			/* IOT consideration */
+			if (mlmext_info->assoc_AP_vendor == HT_IOT_PEER_CISCO) {
+				/* if peer is cisco and didn't use ofdm rate, we enable 6M ack */
+				if((BrateCfg & (RRSR_24M|RRSR_12M|RRSR_6M)) == 0)
+					BrateCfg |= RRSR_6M;
+			}
+			ioted = BrateCfg;
+
+			pHalData->BasicRateSet = BrateCfg;
+
+			DBG_8192C("HW_VAR_BASIC_RATE: %#x -> %#x -> %#x\n", input_b, masked, ioted);
+
+			// Set RRSR rate table.
+			rtw_write16(padapter, REG_RRSR, BrateCfg);
+			rtw_write8(padapter, REG_RRSR+2, rtw_read8(padapter, REG_RRSR+2)&0xf0);
+		}
 			break;
 
 		case HW_VAR_TXPAUSE:
@@ -6266,11 +6272,6 @@ _func_enter_;
 				rtw_write8(padapter, REG_ACMHWCTRL, AcmCtrl );
 			}
 			break;
-
-		case HW_VAR_AMPDU_MIN_SPACE:
-			pHalData->AMPDUDensity = *(u8*)pval;
-			break;
-
 		case HW_VAR_AMPDU_FACTOR:
 			{
 				u32	AMPDULen = *(u8*)pval;

@@ -107,7 +107,7 @@ int rtw_ht_enable = 1;
 // 0x21 means enable 2.4G 40MHz & 5G 80MHz
 int rtw_bw_mode = 0x21;
 int rtw_cbw40_enable = 3; // 0 :diable, bit(0): enable 2.4g, bit(1): enable 5g
-int rtw_ampdu_enable = 1;//for enable tx_ampdu
+int rtw_ampdu_enable = 1;//for enable tx_ampdu ,// 0: disable, 0x1:enable (but wifi_spec should be 0), 0x2: force enable (don't care wifi_spec)
 int rtw_rx_stbc = 1;// 0: disable, bit(0):enable 2.4g, bit(1):enable 5g, default is set to enable 2.4GHZ for IOT issue with bufflao's AP at 5GHZ
 int rtw_ampdu_amsdu = 0;// 0: disabled, 1:enabled, 2:auto
 // Short GI support Bit Map
@@ -323,8 +323,13 @@ int rtw_tx_pwr_by_rate = 1;
 int rtw_tx_pwr_lmt_enable = 0;
 int rtw_tx_pwr_by_rate = 1;
 #else //eFuse: Regulatory selection=2
+#ifdef CONFIG_PCI_HCI
+int rtw_tx_pwr_lmt_enable = 2; // 2- Depend on efuse
+int rtw_tx_pwr_by_rate = 2;// 2- Depend on efuse
+#else // USB & SDIO
 int rtw_tx_pwr_lmt_enable = 0;
 int rtw_tx_pwr_by_rate = 0;
+#endif 
 #endif
 
 module_param(rtw_tx_pwr_lmt_enable, int, 0644);
@@ -601,7 +606,14 @@ unsigned int rtw_classify8021d(struct sk_buff *skb)
 	return dscp >> 5;
 }
 
-static u16 rtw_select_queue(struct net_device *dev, struct sk_buff *skb)
+static u16 rtw_select_queue(struct net_device *dev, struct sk_buff *skb
+#if (LINUX_VERSION_CODE>=KERNEL_VERSION(3,13,0))
+				, void *accel_priv
+#endif
+#if (LINUX_VERSION_CODE>=KERNEL_VERSION(3,14,0))
+				, select_queue_fallback_t fallback
+#endif
+				)
 {
 	_adapter	*padapter = rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
@@ -651,7 +663,7 @@ static int rtw_ndev_notifier_call(struct notifier_block * nb, unsigned long stat
 	struct net_device *dev = ndev;
 
 #if (LINUX_VERSION_CODE>=KERNEL_VERSION(2,6,29))
-	if (dev->netdev_ops->ndo_do_ioctl != rtw_ioctl)
+	if (!dev->netdev_ops || dev->netdev_ops->ndo_do_ioctl != rtw_ioctl)
 #else
 	if (dev->do_ioctl != rtw_ioctl)
 #endif
@@ -1014,7 +1026,10 @@ u8 rtw_init_default_value(_adapter *padapter)
 	padapter->bShowGetP2PState = 1;
 #endif
 
+	//for debug purpose
 	padapter->fix_rate = 0xFF;
+	padapter->driver_ampdu_spacing = 0xFF;
+	padapter->driver_rx_ampdu_factor =  0xFF;
 
 	return ret;
 }
@@ -2635,6 +2650,283 @@ void rtw_ndev_destructor(struct net_device *ndev)
 	free_netdev(ndev);
 }
 
+#ifdef CONFIG_ARP_KEEP_ALIVE
+struct route_info {
+    struct in_addr dst_addr;
+    struct in_addr src_addr;
+    struct in_addr gateway;
+    unsigned int dev_index;
+};
+
+static void parse_routes(struct nlmsghdr *nl_hdr, struct route_info *rt_info)
+{
+    struct rtmsg *rt_msg;
+    struct rtattr *rt_attr;
+    int rt_len;
+
+    rt_msg = (struct rtmsg *) NLMSG_DATA(nl_hdr);
+    if ((rt_msg->rtm_family != AF_INET) || (rt_msg->rtm_table != RT_TABLE_MAIN))
+        return;
+
+    rt_attr = (struct rtattr *) RTM_RTA(rt_msg);
+    rt_len = RTM_PAYLOAD(nl_hdr);
+
+    for (; RTA_OK(rt_attr, rt_len); rt_attr = RTA_NEXT(rt_attr, rt_len)) 
+	{
+        switch (rt_attr->rta_type) {
+        case RTA_OIF:
+		rt_info->dev_index = *(int *) RTA_DATA(rt_attr);
+            break;
+        case RTA_GATEWAY:
+            rt_info->gateway.s_addr = *(u_int *) RTA_DATA(rt_attr);
+            break;
+        case RTA_PREFSRC:
+            rt_info->src_addr.s_addr = *(u_int *) RTA_DATA(rt_attr);
+            break;
+        case RTA_DST:
+            rt_info->dst_addr.s_addr = *(u_int *) RTA_DATA(rt_attr);
+            break;
+        }
+    }
+}
+
+static int route_dump(u32 *gw_addr ,int* gw_index)
+{
+	int err = 0;
+	struct socket *sock;
+	struct {
+		struct nlmsghdr nlh;
+		struct rtgenmsg g;
+	} req;
+	struct msghdr msg;
+	struct iovec iov;
+	struct sockaddr_nl nladdr;
+	mm_segment_t oldfs;
+	char *pg;
+	int size = 0;
+
+	err = sock_create(AF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE, &sock);
+	if (err)
+	{
+		printk( ": Could not create a datagram socket, error = %d\n", -ENXIO);
+		return err;
+	}
+	
+	memset(&nladdr, 0, sizeof(nladdr));
+	nladdr.nl_family = AF_NETLINK;
+
+	req.nlh.nlmsg_len = sizeof(req);
+	req.nlh.nlmsg_type = RTM_GETROUTE;
+	req.nlh.nlmsg_flags = NLM_F_ROOT | NLM_F_MATCH | NLM_F_REQUEST;
+	req.nlh.nlmsg_pid = 0;
+	req.g.rtgen_family = AF_INET;
+
+	iov.iov_base = &req;
+	iov.iov_len = sizeof(req);
+
+	msg.msg_name = &nladdr;
+	msg.msg_namelen = sizeof(nladdr);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_flags = MSG_DONTWAIT;
+
+	oldfs = get_fs(); set_fs(KERNEL_DS);
+	err = sock_sendmsg(sock, &msg, sizeof(req));
+	set_fs(oldfs);
+
+	if (size < 0)
+		goto out_sock;
+
+	pg = (char *) __get_free_page(GFP_KERNEL);
+	if (pg == NULL) {
+		err = -ENOMEM;
+		goto out_sock;
+	}
+
+#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
+restart:
+#endif
+
+	for (;;) 
+	{
+		struct nlmsghdr *h;
+
+		iov.iov_base = pg;
+		iov.iov_len = PAGE_SIZE;
+
+		oldfs = get_fs(); set_fs(KERNEL_DS);
+		err = sock_recvmsg(sock, &msg, PAGE_SIZE, MSG_DONTWAIT);
+		set_fs(oldfs);
+
+		if (err < 0)
+			goto out_sock_pg;
+
+		if (msg.msg_flags & MSG_TRUNC) {
+			err = -ENOBUFS;
+			goto out_sock_pg;
+		}
+
+		h = (struct nlmsghdr*) pg;
+		
+		while (NLMSG_OK(h, err)) 
+		{
+			struct route_info rt_info;
+			if (h->nlmsg_type == NLMSG_DONE) {
+				err = 0;
+				goto done;
+			}
+
+			if (h->nlmsg_type == NLMSG_ERROR) {
+				struct nlmsgerr *errm = (struct nlmsgerr*) NLMSG_DATA(h);
+				err = errm->error;
+				printk( "NLMSG error: %d\n", errm->error);
+				goto done;
+			}
+
+			if (h->nlmsg_type == RTM_GETROUTE)
+			{
+				printk( "RTM_GETROUTE: NLMSG: %d\n", h->nlmsg_type);
+			}
+			if (h->nlmsg_type != RTM_NEWROUTE) {
+				printk( "NLMSG: %d\n", h->nlmsg_type);
+				err = -EINVAL;
+				goto done;
+			}
+
+			memset(&rt_info, 0, sizeof(struct route_info));
+			parse_routes(h, &rt_info);
+			if(!rt_info.dst_addr.s_addr && rt_info.gateway.s_addr && rt_info.dev_index)
+			{
+				*gw_addr = rt_info.gateway.s_addr;
+				*gw_index = rt_info.dev_index;
+				 	
+			}
+			h = NLMSG_NEXT(h, err);
+		}
+
+		if (err) 
+		{
+			printk( "!!!Remnant of size %d %d %d\n", err, h->nlmsg_len, h->nlmsg_type);
+			err = -EINVAL;
+			break;
+		}
+	}
+
+done:
+#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
+	if (!err && req.g.rtgen_family == AF_INET) {
+		req.g.rtgen_family = AF_INET6;
+
+		iov.iov_base = &req;
+		iov.iov_len = sizeof(req);
+
+		msg.msg_name = &nladdr;
+		msg.msg_namelen = sizeof(nladdr);
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
+		msg.msg_control = NULL;
+		msg.msg_controllen = 0;
+		msg.msg_flags=MSG_DONTWAIT;
+
+		oldfs = get_fs(); set_fs(KERNEL_DS);
+		err = sock_sendmsg(sock, &msg, sizeof(req));
+		set_fs(oldfs);
+
+		if (err > 0)
+			goto restart;
+	}
+#endif
+
+out_sock_pg:
+	free_page((unsigned long) pg);
+
+out_sock:
+	sock_release(sock);
+	return err;
+}
+
+static int arp_query(unsigned char *haddr, u32 paddr,
+             struct net_device *dev)
+{
+	struct neighbour *neighbor_entry;
+	int	ret = 0;
+
+	neighbor_entry = neigh_lookup(&arp_tbl, &paddr, dev);
+
+	if (neighbor_entry != NULL) {
+		neighbor_entry->used = jiffies;
+		if (neighbor_entry->nud_state & NUD_VALID) {
+			_rtw_memcpy(haddr, neighbor_entry->ha, dev->addr_len);
+			ret = 1;
+		}
+		neigh_release(neighbor_entry);
+	}
+	return ret;
+}
+
+static int get_defaultgw(u32 *ip_addr ,char mac[])
+{
+	int gw_index = 0; // oif device index
+	struct net_device *gw_dev = NULL; //oif device
+	
+	route_dump(ip_addr, &gw_index);
+
+	if( !(*ip_addr) || !gw_index )
+	{
+		//DBG_871X("No default GW \n");
+		return -1;
+	}
+
+	gw_dev = dev_get_by_index(&init_net, gw_index);
+
+	if(gw_dev == NULL)
+	{
+		//DBG_871X("get Oif Device Fail \n");
+		return -1;
+	}
+	
+	if(!arp_query(mac, *ip_addr, gw_dev))
+	{
+		//DBG_871X( "arp query failed\n");
+		dev_put(gw_dev);
+		return -1;
+		
+	}
+	dev_put(gw_dev);
+	
+	return 0;
+}
+
+int	rtw_gw_addr_query(_adapter *padapter)
+{
+	struct mlme_priv	*pmlmepriv = &padapter->mlmepriv;
+	u32 gw_addr = 0; // default gw address
+	unsigned char gw_mac[32] = {0}; // default gw mac
+	int i;
+	int res;
+
+	res = get_defaultgw(&gw_addr, gw_mac);
+	if(!res)
+	{
+		pmlmepriv->gw_ip[0] = gw_addr&0xff;
+		pmlmepriv->gw_ip[1] = (gw_addr&0xff00)>>8;
+		pmlmepriv->gw_ip[2] = (gw_addr&0xff0000)>>16;
+		pmlmepriv->gw_ip[3] = (gw_addr&0xff000000)>>24;
+		_rtw_memcpy(pmlmepriv->gw_mac_addr, gw_mac, 6);
+		DBG_871X("%s Gateway Mac:\t" MAC_FMT "\n", __FUNCTION__, MAC_ARG(pmlmepriv->gw_mac_addr));
+		DBG_871X("%s Gateway IP:\t" IP_FMT "\n", __FUNCTION__, IP_ARG(pmlmepriv->gw_ip));
+	}
+	else
+	{
+		DBG_871X("Get Gateway IP/MAC fail!\n");
+	}
+
+	return res;
+}
+#endif
+
 void rtw_dev_unload(PADAPTER padapter)
 {
 	struct net_device *pnetdev = (struct net_device*)padapter->pnetdev;	
@@ -2675,6 +2967,11 @@ void rtw_dev_unload(PADAPTER padapter)
 
 		if (padapter->bSurpriseRemoved == _FALSE)
 		{
+#ifdef CONFIG_BT_COEXIST
+			//rtw_btcoex_HaltNotify(padapter);
+			rtw_btcoex_IpsNotify(padapter, pwrctl->ips_mode_req);
+#endif
+
 #ifdef CONFIG_WOWLAN
 			if (pwrctl->bSupportRemoteWakeup == _TRUE && 
 				pwrctl->wowlan_mode ==_TRUE) {
@@ -2702,7 +2999,6 @@ void rtw_dev_unload(PADAPTER padapter)
 	RT_TRACE(_module_hci_intfs_c_, _drv_notice_, ("-%s\n",__FUNCTION__));
 }
 
-#ifdef CONFIG_SUSPEND_REFINE
 int rtw_suspend_free_assoc_resource(_adapter *padapter)
 {
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
@@ -2809,7 +3105,7 @@ int rtw_suspend_wow(_adapter *padapter)
 		}
 		#endif // CONFIG_CONCURRENT_MODE
 
-		//#ifdef CONFIG_POWER_SAVING
+		//#ifdef CONFIG_LPS
 		//rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0, "WOWLAN");
 		//#endif
 
@@ -2878,13 +3174,13 @@ int rtw_suspend_wow(_adapter *padapter)
 			rtw_suspend_free_assoc_resource(padapter->pbuddy_adapter);
 		}
 		#endif	
-		
-		#ifdef CONFIG_POWER_SAVING
+
 		if(pwrpriv->wowlan_pno_enable)
 			DBG_871X_LEVEL(_drv_always_, "%s: pno: %d\n", __func__, pwrpriv->wowlan_pno_enable);
+		#ifdef CONFIG_LPS
 		else
 			rtw_set_ps_mode(padapter, PS_MODE_DTIM, 0, 0, "WOWLAN");
-		#endif
+		#endif //#ifdef CONFIG_LPS
 
 	}
 	else
@@ -2942,9 +3238,9 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 	struct net_device *pnetdev = padapter->pnetdev;
 	#ifdef CONFIG_CONCURRENT_MODE
 	struct net_device *pbuddy_netdev;
-	#endif	
+	#endif
 	struct dvobj_priv *psdpriv = padapter->dvobj;
-	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;	
+	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;
 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
 	struct wowlan_ioctl_param poidparam;
 	u8 ps_mode;
@@ -2957,7 +3253,7 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 	DBG_871X("wowlan_ap_mode: %d\n", pwrpriv->wowlan_ap_mode);
 	
 	if(pnetdev)
-		rtw_netif_stop_queue(pnetdev);	
+		rtw_netif_stop_queue(pnetdev);
 	#ifdef CONFIG_CONCURRENT_MODE
 	if (rtw_buddy_adapter_up(padapter)) {
 		pbuddy_netdev = padapter->pbuddy_adapter->pnetdev;
@@ -2977,11 +3273,12 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 		padapter->pbuddy_adapter->bDriverStopped = _FALSE;	//for 32k command
 	}
 	#endif // CONFIG_CONCURRENT_MODE
-
-	//#ifdef CONFIG_POWER_SAVING
+	
+	//#ifdef CONFIG_LPS
 	//rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0, "WOWLAN");
 	//#endif
 
+#ifdef CONFIG_SDIO_HCI
 	// 2. disable interrupt
 	rtw_hal_disable_interrupt(padapter); // It need wait for leaving 32K.
 
@@ -2994,6 +3291,7 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 	// 2.1 clean interupt
 	if (padapter->HalFunc.clear_interrupt)
 		padapter->HalFunc.clear_interrupt(padapter);
+#endif //CONFIG_SDIO_HCI
 
 	// 2.2 free irq
 	//sdio_free_irq(adapter_to_dvobj(padapter));
@@ -3005,14 +3303,14 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 		DBG_871X(" ### PORT SWITCH ### \n");
 		rtw_hal_set_hwreg(padapter, HW_VAR_PORT_SWITCH, NULL);
 	}
-	#endif		
-		
+	#endif
+
 	poidparam.subcode = WOWLAN_AP_ENABLE;
 	padapter->HalFunc.SetHwRegHandler(padapter,
 					HW_VAR_AP_WOWLAN,(u8 *)&poidparam);
 
 	DBG_871X_LEVEL(_drv_always_, "%s: wowmode suspending\n", __func__);
-		
+
 #ifdef CONFIG_CONCURRENT_MODE
 	if (check_buddy_fwstate(padapter, WIFI_AP_STATE) == _TRUE) {
 		if (rtw_get_ch_setting_union(padapter->pbuddy_adapter, &ch, &bw, &offset) != 0) {
@@ -3037,11 +3335,11 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 	}
 #endif
 
-#ifdef CONFIG_POWER_SAVING
+
 #ifdef CONFIG_LPS
 	rtw_set_ps_mode(padapter, PS_MODE_MIN, 0, 0, "AP-WOWLAN");
 #endif
-	#endif
+
 
 	DBG_871X("<== "FUNC_ADPT_FMT" exit....\n", FUNC_ADPT_ARG(padapter));
 	return ret;
@@ -3233,16 +3531,22 @@ _func_enter_;
 		goto exit;
 	}
 
+	if (padapter->bDriverStopped || padapter->bSurpriseRemoved) {
+		DBG_871X("%s pdapter %p bDriverStopped %d bSurpriseRemoved %d\n",
+				__FUNCTION__, padapter, padapter->bDriverStopped,
+				padapter->bSurpriseRemoved);
+		goto exit;
+	}
+
 #ifdef CONFIG_PNO_SUPPORT
 	pwrpriv->pno_in_resume = _TRUE;
 #endif
 
 	if (pwrpriv->wowlan_mode == _TRUE){
-#ifdef CONFIG_POWER_SAVING
 #ifdef CONFIG_LPS
 		rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0, "WOWLAN");
 #endif //CONFIG_LPS
-#endif
+
 		pwrpriv->bFwCurrentInPSMode = _FALSE;
 
 #ifdef CONFIG_SDIO_HCI
@@ -3353,10 +3657,6 @@ _func_enter_;
 
 		DBG_871X("bkeepfwalive(%x)\n",pwrpriv->bkeepfwalive);
 		
-		if(pm_netdev_close(pnetdev, _TRUE) == 0) {
-			DBG_871X("netdev_close success\n");
-		}
-
 		if(pm_netdev_open(pnetdev,_TRUE) != 0) {
 			ret = -1;
 			pdbgpriv->dbg_resume_error_cnt++;
@@ -3469,11 +3769,11 @@ _func_enter_;
 		goto exit;
 	}
 
-#ifdef CONFIG_POWER_SAVING
+
 #ifdef CONFIG_LPS
 	rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0, "AP-WOWLAN");
 #endif //CONFIG_LPS
-#endif
+
 	pwrpriv->bFwCurrentInPSMode = _FALSE;
 
 	rtw_hal_disable_interrupt(padapter);
@@ -3771,6 +4071,4 @@ int rtw_resume_common(_adapter *padapter)
 	
 	return ret;
 }
-#endif
-
 

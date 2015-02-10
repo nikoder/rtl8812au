@@ -109,6 +109,7 @@ typedef struct _COEX_DM_8723B_1ANT{
 	u1Byte		curRetryLimitType;
 	u1Byte		preAmpduTimeType;
 	u1Byte		curAmpduTimeType;
+	u4Byte		nArpCnt;
 
 	u1Byte		errorCondition;
 } COEX_DM_8723B_1ANT, *PCOEX_DM_8723B_1ANT;
@@ -122,7 +123,6 @@ typedef struct _COEX_STA_8723B_1ANT{
 
 	BOOLEAN					bUnderLps;
 	BOOLEAN					bUnderIps;
-	BOOLEAN					bFinishInitHW;
 	u4Byte					specialPktPeriodCnt;
 	u4Byte					highPriorityTx;
 	u4Byte					highPriorityRx;
@@ -145,6 +145,10 @@ typedef struct _COEX_STA_8723B_1ANT{
 //===========================================
 // The following is interface which will notify coex module.
 //===========================================
+VOID
+EXhalbtc8723b1ant_PowerOnSetting(
+	IN	PBTC_COEXIST		pBtCoexist
+	);
 VOID
 EXhalbtc8723b1ant_InitHwConfig(
 	IN	PBTC_COEXIST		pBtCoexist,
@@ -189,6 +193,11 @@ EXhalbtc8723b1ant_BtInfoNotify(
 	IN	PBTC_COEXIST		pBtCoexist,
 	IN	pu1Byte			tmpBuf,
 	IN	u1Byte			length
+	);
+VOID
+EXhalbtc8723b1ant_RfStatusNotify(
+	IN	PBTC_COEXIST			pBtCoexist,
+	IN	u1Byte					type
 	);
 VOID
 EXhalbtc8723b1ant_HaltNotify(

@@ -4,6 +4,9 @@
 #define		NORMAL_EXEC					FALSE
 #define		FORCE_EXEC						TRUE
 
+#define		BTC_RF_OFF					0x0
+#define		BTC_RF_ON					0x1
+
 #define		BTC_RF_A					0x0
 #define		BTC_RF_B					0x1
 #define		BTC_RF_C					0x2
@@ -165,6 +168,7 @@ typedef struct _BTC_BOARD_INFO{
 	u1Byte				pgAntNum;	// pg ant number
 	u1Byte				btdmAntNum;	// ant number for btdm
 	u1Byte				btdmAntPos;		//Bryant Add to indicate Antenna Position for (pgAntNum = 2) && (btdmAntNum =1)  (DPDT+1Ant case)
+	u1Byte				singleAntPath;	// current used for 8723b only, 1=>s0,  0=>s1
 	BOOLEAN				bBtExist;
 } BTC_BOARD_INFO, *PBTC_BOARD_INFO;
 
@@ -244,8 +248,8 @@ typedef enum _BTC_GET_TYPE{
 	BTC_GET_BL_WIFI_AP_MODE_ENABLE,
 	BTC_GET_BL_WIFI_ENABLE_ENCRYPTION,
 	BTC_GET_BL_WIFI_UNDER_B_MODE,
-	BTC_GET_BL_WIFI_IS_IN_MP_MODE,
 	BTC_GET_BL_EXT_SWITCH,
+	BTC_GET_BL_WIFI_IS_IN_MP_MODE,
 
 	// type s4Byte
 	BTC_GET_S4_WIFI_RSSI,
@@ -488,6 +492,7 @@ typedef struct _BTC_BT_INFO{
 	u2Byte					btHciVer;
 	u2Byte					btRealFwVer;
 	u1Byte					btFwVer;
+	u4Byte					getBtFwVerCnt;
 
 	BOOLEAN					bBtDisableLowPwr;
 
@@ -528,6 +533,7 @@ typedef struct _BTC_BT_LINK_INFO{
 
 typedef struct _BTC_STATISTICS{
 	u4Byte					cntBind;
+	u4Byte					cntPowerOn;
 	u4Byte					cntInitHwConfig;
 	u4Byte					cntInitCoexDm;
 	u4Byte					cntIpsNotify;
@@ -537,6 +543,7 @@ typedef struct _BTC_STATISTICS{
 	u4Byte					cntMediaStatusNotify;
 	u4Byte					cntSpecialPacketNotify;
 	u4Byte					cntBtInfoNotify;
+	u4Byte					cntRfStatusNotify;
 	u4Byte					cntPeriodical;
 	u4Byte					cntCoexDmSwitch;
 	u4Byte					cntStackOperationNotify;
@@ -595,6 +602,10 @@ EXhalbtcoutsrc_InitlizeVariables(
 	IN	PVOID		Adapter
 	);
 VOID
+EXhalbtcoutsrc_PowerOnSetting(
+	IN	PBTC_COEXIST		pBtCoexist
+	);
+VOID
 EXhalbtcoutsrc_InitHwConfig(
 	IN	PBTC_COEXIST		pBtCoexist,
 	IN	BOOLEAN				bWifiOnly
@@ -638,6 +649,11 @@ EXhalbtcoutsrc_BtInfoNotify(
 	IN	PBTC_COEXIST		pBtCoexist,
 	IN	pu1Byte			tmpBuf,
 	IN	u1Byte			length
+	);
+VOID
+EXhalbtcoutsrc_RfStatusNotify(
+	IN	PBTC_COEXIST		pBtCoexist,
+	IN	u1Byte 				type
 	);
 VOID
 EXhalbtcoutsrc_StackOperationNotify(
@@ -699,6 +715,10 @@ EXhalbtcoutsrc_SetAntNum(
 	IN	u1Byte		type,
 	IN	u1Byte		antNum,
 	IN	BOOLEAN 	antInverse
+	);
+VOID
+EXhalbtcoutsrc_SetSingleAntPath(
+	IN	u1Byte		singleAntPath
 	);
 VOID
 EXhalbtcoutsrc_DisplayBtCoexInfo(

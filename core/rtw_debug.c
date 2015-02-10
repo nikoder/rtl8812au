@@ -1114,6 +1114,11 @@ int proc_get_all_sta_info(struct seq_file *m, void *v)
 				DBG_871X_SEL_NL(m, "agg_enable_bitmap=%x, candidate_tid_bitmap=%x\n", psta->htpriv.agg_enable_bitmap, psta->htpriv.candidate_tid_bitmap);
 #endif //CONFIG_80211N_HT
 				DBG_871X_SEL_NL(m, "sleepq_len=%d\n", psta->sleepq_len);
+				DBG_871X_SEL_NL(m, "sta_xmitpriv.vo_q_qcnt=%d\n", psta->sta_xmitpriv.vo_q.qcnt);
+				DBG_871X_SEL_NL(m, "sta_xmitpriv.vi_q_qcnt=%d\n", psta->sta_xmitpriv.vi_q.qcnt);
+				DBG_871X_SEL_NL(m, "sta_xmitpriv.be_q_qcnt=%d\n", psta->sta_xmitpriv.be_q.qcnt);
+				DBG_871X_SEL_NL(m, "sta_xmitpriv.bk_q_qcnt=%d\n", psta->sta_xmitpriv.bk_q.qcnt);
+
 				DBG_871X_SEL_NL(m, "capability=0x%x\n", psta->capability);
 				DBG_871X_SEL_NL(m, "flags=0x%x\n", psta->flags);
 				DBG_871X_SEL_NL(m, "wpa_psk=0x%x\n", psta->wpa_psk);

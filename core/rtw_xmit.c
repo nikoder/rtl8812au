@@ -612,9 +612,18 @@ static void update_attrib_vcs_info(_adapter *padapter, struct xmit_frame *pxmitf
 			break;
 		}
 	}
+
+	//for debug : force driver control vrtl_carrier_sense.
+	if(padapter->driver_vcs_en==1)
+	{
+		//u8 driver_vcs_en; //Enable=1, Disable=0 driver control vrtl_carrier_sense.
+		//u8 driver_vcs_type;//force 0:disable VCS, 1:RTS-CTS, 2:CTS-to-self when vcs_en=1.
+		pattrib->vcs_mode = padapter->driver_vcs_type;
+	}	
+	
 }
 
-static void update_attrib_phy_info(struct pkt_attrib *pattrib, struct sta_info *psta)
+static void update_attrib_phy_info(_adapter *padapter, struct pkt_attrib *pattrib, struct sta_info *psta)
 {
 	pattrib->rtsen = psta->rtsen;
 	pattrib->cts2self = psta->cts2self;
@@ -622,6 +631,7 @@ static void update_attrib_phy_info(struct pkt_attrib *pattrib, struct sta_info *
 	pattrib->mdata = 0;
 	pattrib->eosp = 0;
 	pattrib->triggered=0;
+	pattrib->ampdu_spacing = 0;
 	
 	//qos_en, ht_en, init rate, ,bw, ch_offset, sgi
 	pattrib->qos_en = psta->qos_option;
@@ -639,6 +649,11 @@ static void update_attrib_phy_info(struct pkt_attrib *pattrib, struct sta_info *
 	pattrib->ht_en = psta->htpriv.ht_option;
 	pattrib->ch_offset = psta->htpriv.ch_offset;
 	pattrib->ampdu_en = _FALSE;
+
+	if(padapter->driver_ampdu_spacing != 0xFF) //driver control AMPDU Density for peer sta's rx
+		pattrib->ampdu_spacing = padapter->driver_ampdu_spacing;
+	else
+		pattrib->ampdu_spacing = psta->htpriv.rx_ampdu_min_spacing;
 #endif //CONFIG_80211N_HT
 	//if(pattrib->ht_en && psta->htpriv.ampdu_enable)
 	//{
@@ -941,7 +956,7 @@ s32 update_tdls_attrib(_adapter *padapter, struct pkt_attrib *pattrib)
 		goto exit;
 	}
 
-	update_attrib_phy_info(pattrib, psta);
+	update_attrib_phy_info(padapter, pattrib, psta);
 
 
 exit:
@@ -1075,7 +1090,7 @@ static s32 update_attrib(_adapter *padapter, _pkt *pkt, struct pkt_attrib *pattr
 		psta = rtw_get_bcmc_stainfo(padapter);
 	} else {
 		psta = rtw_get_stainfo(pstapriv, pattrib->ra);
-		if (psta == NULL)	{ // if we cannot get psta => drrp the pkt
+		if (psta == NULL)	{ // if we cannot get psta => drop the pkt
 			RT_TRACE(_module_rtl871x_xmit_c_, _drv_alert_, ("\nupdate_attrib => get sta_info fail, ra:" MAC_FMT"\n", MAC_ARG(pattrib->ra)));
 			#ifdef DBG_TX_DROP_FRAME
 			DBG_871X("DBG_TX_DROP_FRAME %s get sta_info fail, ra:" MAC_FMT"\n", __FUNCTION__, MAC_ARG(pattrib->ra));
@@ -1115,7 +1130,7 @@ static s32 update_attrib(_adapter *padapter, _pkt *pkt, struct pkt_attrib *pattr
 		goto exit;
 	}
 
-	update_attrib_phy_info(pattrib, psta);
+	update_attrib_phy_info(padapter, pattrib, psta);
 
 	//DBG_8192C("%s ==> mac_id(%d)\n",__FUNCTION__,pattrib->mac_id );
 	
@@ -3937,9 +3952,10 @@ sint xmitframe_enqueue_for_sleeping_sta(_adapter *padapter, struct xmit_frame *p
 
 		//pattrib->triggered=0;
 
+#ifndef CONFIG_PCI_HCI
 		if(bmcst)
 			pattrib->qsel = 0x11;//HIQ
-		
+#endif
 
 		return ret;
 	}
@@ -4081,14 +4097,16 @@ static void dequeue_xmitframes_to_sleeping_queue(_adapter *padapter, struct sta_
 	{			
 		pxmitframe = LIST_CONTAINOR(plist, struct xmit_frame, list);
 
-		plist = get_next(plist);	
+		plist = get_next(plist);
 		
+		pattrib = &pxmitframe->attrib;
+
+		pattrib->triggered = 0;
+  		
 		ret = xmitframe_enqueue_for_sleeping_sta(padapter, pxmitframe);	
 
 		if(_TRUE == ret)
 		{
-			pattrib = &pxmitframe->attrib;
-
 			ptxservq = rtw_get_sta_pending(padapter, psta, pattrib->priority, (u8 *)(&ac_index));
 
 			ptxservq->qcnt--;

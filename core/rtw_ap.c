@@ -992,6 +992,8 @@ void update_sta_info_apmode(_adapter *padapter, struct sta_info *psta)
 		//check if sta supports rx ampdu
 		phtpriv_sta->ampdu_enable = phtpriv_ap->ampdu_enable;
 
+		phtpriv_sta->rx_ampdu_min_spacing = (phtpriv_sta->ht_cap.ampdu_params_info&IEEE80211_HT_CAP_AMPDU_DENSITY)>>2;
+	
 		//check if sta support s Short GI 20M
 		if((phtpriv_sta->ht_cap.cap_info & phtpriv_ap->ht_cap.cap_info) & cpu_to_le16(IEEE80211_HT_CAP_SGI_20))
 		{

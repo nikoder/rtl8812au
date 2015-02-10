@@ -40,11 +40,6 @@ unsigned char AIRGOCAP_OUI[] = {0x00, 0x0a, 0xf5};
 
 unsigned char REALTEK_96B_IE[] = {0x00, 0xe0, 0x4c, 0x02, 0x01, 0x20};
 
-extern unsigned char	MCS_rate_2R[16];
-#ifdef CONFIG_DISABLE_MCS13TO15
-extern unsigned char	MCS_rate_2R_MCS13TO15_OFF[16];
-#endif //CONFIG_DISABLE_MCS13TO15
-extern unsigned char	MCS_rate_1R[16];
 extern unsigned char RTW_WPA_OUI[];
 extern unsigned char WPA_TKIP_CIPHER[4];
 extern unsigned char RSN_TKIP_CIPHER[4];
@@ -54,6 +49,9 @@ extern unsigned char RSN_TKIP_CIPHER[4];
 //#define WAIT_FOR_BCN_TO_MIN	(3000)
 #define WAIT_FOR_BCN_TO_MIN	(6000)
 #define WAIT_FOR_BCN_TO_MAX	(20000)
+
+#define DISCONNECT_BY_CHK_BCN_FAIL_OBSERV_PERIOD_IN_MS 1000
+#define DISCONNECT_BY_CHK_BCN_FAIL_THRESHOLD 3
 
 static u8 rtw_basic_rate_cck[4] = {
 	IEEE80211_CCK_RATE_1MB|IEEE80211_BASIC_RATE_MASK, IEEE80211_CCK_RATE_2MB|IEEE80211_BASIC_RATE_MASK,
@@ -391,6 +389,19 @@ void get_rate_set(_adapter *padapter, unsigned char *pbssrate, int *bssrate_len)
 	_rtw_memset(supportedrates, 0, NumRates);
 	*bssrate_len = ratetbl2rateset(padapter, supportedrates);
 	_rtw_memcpy(pbssrate, supportedrates, *bssrate_len);
+}
+
+void set_mcs_rate_by_mask(u8 *mcs_set, u32 mask)
+{
+	u8 mcs_rate_1r = (u8)(mask&0xff);
+	u8 mcs_rate_2r = (u8)((mask>>8)&0xff);
+	u8 mcs_rate_3r = (u8)((mask>>16)&0xff);
+	u8 mcs_rate_4r = (u8)((mask>>24)&0xff);
+
+	mcs_set[0] &= mcs_rate_1r;
+	mcs_set[1] &= mcs_rate_2r;
+	mcs_set[2] &= mcs_rate_3r;
+	mcs_set[3] &= mcs_rate_4r;
 }
 
 void UpdateBrateTbl(
@@ -1425,29 +1436,28 @@ void HT_caps_handler(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 
 	rtw_hal_get_hwreg(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
 
-	//update the MCS rates
+
+	//update the MCS set
 	for (i = 0; i < 16; i++)
+		pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= pmlmeext->default_supported_mcs_set[i];
+			
+	//update the MCS rates
+	switch(rf_type)
 	{
-		if((rf_type == RF_1T1R) || (rf_type == RF_1T2R))
-		{
-			pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_1R[i];
-		}
-		else
-		{
-			#ifdef CONFIG_DISABLE_MCS13TO15
-			if(pmlmeext->cur_bwmode == CHANNEL_WIDTH_40 && (pregistrypriv->wifi_spec!=1))
-				pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_2R_MCS13TO15_OFF[i];
+		case RF_1T1R:
+		case RF_1T2R:
+			set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_1R);							
+			break;
+		case RF_2T2R:		
+		default:
+#ifdef CONFIG_DISABLE_MCS13TO15
+			if(pmlmeext->cur_bwmode == CHANNEL_WIDTH_40 && pregistrypriv->wifi_spec != 1 )				
+				set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_2R_13TO15_OFF);				
 			else
-			pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_2R[i];
-			#else
-			pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate[i] &= MCS_rate_2R[i];
-			#endif //CONFIG_DISABLE_MCS13TO15
-		}
-	        #ifdef RTL8192C_RECONFIG_TO_1T1R
-		{
-			pmlmeinfo->HT_caps.HT_cap_element.MCS_rate[i] &= MCS_rate_1R[i];
-		}
-		#endif
+				set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_2R);
+#else //CONFIG_DISABLE_MCS13TO15
+			set_mcs_rate_by_mask(pmlmeinfo->HT_caps.u.HT_cap_element.MCS_rate, MCS_RATE_2R);
+#endif //CONFIG_DISABLE_MCS13TO15
 	}
 
 	if (check_fwstate(pmlmepriv, WIFI_AP_STATE)) {
@@ -1515,7 +1525,6 @@ void HT_caps_handler(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 	}
 
 #endif //CONFIG_80211N_HT
-	return;
 }
 
 void HT_info_handler(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
@@ -1755,6 +1764,7 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 	u32 bcn_channel;
 	unsigned short 	ht_cap_info;
 	unsigned char	ht_info_infos_0;
+	struct mlme_priv *pmlmepriv = &Adapter->mlmepriv;
 
 	if (is_client_associated_to_ap(Adapter) == _FALSE)
 		return _TRUE;
@@ -1776,6 +1786,12 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 	if (bssid == NULL) {
 		DBG_871X("%s rtw_zmalloc fail !!!\n", __func__);
 		return _TRUE;
+	}
+
+	if ((pmlmepriv->timeBcnInfoChkStart != 0) && (rtw_get_passing_time_ms(pmlmepriv->timeBcnInfoChkStart) > DISCONNECT_BY_CHK_BCN_FAIL_OBSERV_PERIOD_IN_MS))
+	{
+		pmlmepriv->timeBcnInfoChkStart = 0;
+		pmlmepriv->NumOfBcnInfoChkFail = 0;
 	}
 
 	subtype = GetFrameSubType(pframe) >> 4;
@@ -1812,7 +1828,7 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 						   	ht_cap_info, ht_info_infos_0);
 			DBG_871X("%s bcn link: ht_cap_info:%x ht_info_infos_0:%x\n", __func__,
 						   	cur_network->BcnInfo.ht_cap_info, cur_network->BcnInfo.ht_info_infos_0);
-			DBG_871X("%s bw mode change, disconnect\n", __func__);
+			DBG_871X("%s bw mode change\n", __func__);
 			{	
 				//bcn_info_update
 				cur_network->BcnInfo.ht_cap_info = ht_cap_info;
@@ -1865,7 +1881,7 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 	if (_rtw_memcmp(bssid->Ssid.Ssid, cur_network->network.Ssid.Ssid, 32) == _FALSE ||
 			bssid->Ssid.SsidLength != cur_network->network.Ssid.SsidLength) {
 		if (bssid->Ssid.Ssid[0] != '\0' && bssid->Ssid.SsidLength != 0) { /* not hidden ssid */
-			DBG_871X("%s(), SSID is not match return FAIL\n", __func__);
+			DBG_871X("%s(), SSID is not match\n", __func__);
 			goto _mismatch;
 		}
 	}
@@ -1882,7 +1898,7 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 			("%s(): cur_network->network.Privacy is %d, bssid.Privacy is %d\n",
 			 __func__, cur_network->network.Privacy,bssid->Privacy));
 	if (cur_network->network.Privacy != bssid->Privacy) {
-		DBG_871X("%s(), privacy is not match return FAIL\n",__func__);
+		DBG_871X("%s(), privacy is not match\n",__func__);
 		goto _mismatch;
 	}
 
@@ -1898,7 +1914,7 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 	}
 
 	if (cur_network->BcnInfo.encryp_protocol != encryp_protocol) {
-		DBG_871X("%s(): enctyp is not match ,return FAIL\n",__func__);
+		DBG_871X("%s(): enctyp is not match\n",__func__);
 		goto _mismatch;
 	}
 
@@ -1925,14 +1941,14 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 		RT_TRACE(_module_rtl871x_mlme_c_,_drv_err_,
 				("%s cur_network->group_cipher is %d: %d\n",__func__, cur_network->BcnInfo.group_cipher, group_cipher));
 		if (pairwise_cipher != cur_network->BcnInfo.pairwise_cipher || group_cipher != cur_network->BcnInfo.group_cipher) {
-			DBG_871X("%s pairwise_cipher(%x:%x) or group_cipher(%x:%x) is not match ,return FAIL\n",__func__,
+			DBG_871X("%s pairwise_cipher(%x:%x) or group_cipher(%x:%x) is not match\n",__func__,
 					pairwise_cipher, cur_network->BcnInfo.pairwise_cipher,
 					group_cipher, cur_network->BcnInfo.group_cipher);
 			goto _mismatch;
 		}
 
 		if (is_8021x != cur_network->BcnInfo.is_8021x) {
-			DBG_871X("%s authentication is not match ,return FAIL\n", __func__);
+			DBG_871X("%s authentication is not match\n", __func__);
 			goto _mismatch;
 		}
 	}
@@ -1942,7 +1958,26 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 
 _mismatch:
 	rtw_mfree((u8 *)bssid, sizeof(WLAN_BSSID_EX));
-	return _FAIL;
+
+	if (pmlmepriv->NumOfBcnInfoChkFail == 0)
+	{
+		pmlmepriv->timeBcnInfoChkStart = rtw_get_current_time();
+	}
+
+	pmlmepriv->NumOfBcnInfoChkFail++;
+	DBG_871X("%s by "ADPT_FMT" - NumOfChkFail = %d (SeqNum of this Beacon frame = %d).\n", __func__, ADPT_ARG(Adapter), pmlmepriv->NumOfBcnInfoChkFail, GetSequence(pframe));
+
+	if ((pmlmepriv->timeBcnInfoChkStart != 0) && (rtw_get_passing_time_ms(pmlmepriv->timeBcnInfoChkStart) <= DISCONNECT_BY_CHK_BCN_FAIL_OBSERV_PERIOD_IN_MS) 
+		&& (pmlmepriv->NumOfBcnInfoChkFail >= DISCONNECT_BY_CHK_BCN_FAIL_THRESHOLD))
+	{
+		DBG_871X("%s by "ADPT_FMT" - NumOfChkFail = %d >= threshold : %d (in %d ms), return FAIL.\n", __func__, ADPT_ARG(Adapter), pmlmepriv->NumOfBcnInfoChkFail, 
+			DISCONNECT_BY_CHK_BCN_FAIL_THRESHOLD, rtw_get_passing_time_ms(pmlmepriv->timeBcnInfoChkStart));
+		pmlmepriv->timeBcnInfoChkStart = 0;
+		pmlmepriv->NumOfBcnInfoChkFail = 0;
+		return _FAIL;
+	}
+
+	return _SUCCESS;
 }
 
 void update_beacon_info(_adapter *padapter, u8 *pframe, uint pkt_len, struct sta_info *psta)
@@ -3529,9 +3564,12 @@ int rtw_dev_pno_set(struct net_device *net, pno_ssid_t* ssid, int num,
 		pwrctl->pscan_info == NULL ||
 		pwrctl->pno_ssid_list == NULL){
 		DBG_871X("%s, ERROR: alloc nlo_info, ssid_list, scan_info fail\n", __func__);
-		return -1;
+		goto failing;
 	}
 
+	pwrctl->pno_in_resume = _FALSE;
+
+	pwrctl->pno_inited = _TRUE;
 	/* NLO Info */
 	ret = rtw_dev_nlo_info_set(pwrctl->pnlo_info, ssid, num,
 			pno_time, pno_repeat, pno_freq_expo_max);
@@ -3547,6 +3585,22 @@ int rtw_dev_pno_set(struct net_device *net, pno_ssid_t* ssid, int num,
 		 __func__, num, pno_time, pno_repeat, pno_freq_expo_max);
 
 	return 0;
+
+failing:
+	if (pwrctl->pnlo_info) {
+		rtw_mfree(pwrctl->pnlo_info, sizeof(pno_nlo_info_t));
+		pwrctl->pnlo_info = NULL;
+	}
+	if (pwrctl->pno_ssid_list) {
+		rtw_mfree(pwrctl->pno_ssid_list, sizeof(pno_ssid_list_t));
+		pwrctl->pno_ssid_list = NULL;
+	}
+	if (pwrctl->pscan_info) {
+		rtw_mfree(pwrctl->pscan_info, sizeof(pno_scan_info_t));
+		pwrctl->pscan_info = NULL;
+	}
+
+	return -1;
 }
 
 #ifdef CONFIG_PNO_SET_DEBUG

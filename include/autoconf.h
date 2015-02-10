@@ -28,8 +28,8 @@
  * Public  General Config
  */
 #define AUTOCONF_INCLUDED
-#define RTL871X_MODULE_NAME "8821AU"
-#define DRV_NAME "rtl8821au"
+#define RTL871X_MODULE_NAME "8812AU"
+#define DRV_NAME "rtl8812au"
 
 
 #define CONFIG_USB_HCI	1
@@ -85,7 +85,7 @@
 //#ifndef CONFIG_MP_INCLUDED
 	#define CONFIG_IPS	1
 	#ifdef CONFIG_IPS
-	//#define CONFIG_IPS_LEVEL_2	1 //enable this to set default IPS mode to IPS_LEVEL_2
+	//#define CONFIG_IPS_LEVEL_2	1 //enable this to set default IPS mode to IPS_LEVEL_2	
 	#define CONFIG_IPS_CHECK_IN_WD // Do IPS Check in WatchDog.	
 	#endif
 	//#define SUPPORT_HW_RFOFF_DETECTED	1
@@ -114,10 +114,9 @@
 		#define CONFIG_RUNTIME_PORT_SWITCH
 		//#define DBG_RUNTIME_PORT_SWITCH
 		#define CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
-		#ifdef CONFIG_RTL8812A
-			#define CONFIG_TSF_RESET_OFFLOAD 1		// For 2 PORT TSF SYNC.
-		#endif
-		//#define CONFIG_MULTI_VIR_IFACES //besides primary&secondary interfaces, extend to support more interfaces
+		//#ifdef CONFIG_RTL8812A
+		//	#define CONFIG_TSF_RESET_OFFLOAD 1		// For 2 PORT TSF SYNC.
+		//#endif
 	#endif
 
 	//#define CONFIG_IOL
@@ -142,9 +141,6 @@
 	#endif			
 	#define CONFIG_FIND_BEST_CHANNEL	1
 	//#define CONFIG_NO_WIRELESS_HANDLERS	1
-
-	//#define	CONFIG_AUTO_AP_MODE
-
 #endif
 
 #define CONFIG_P2P	1
@@ -257,6 +253,8 @@
  */
 #define RTL8812A_RX_PACKET_INCLUDE_CRC	0
 
+#define CONFIG_RX_PACKET_APPEND_FCS
+
 //#define CONFIG_ONLY_ONE_OUT_EP_TO_LOW	0
 
 #define CONFIG_OUT_EP_WIFI_MODE	0
@@ -333,36 +331,24 @@
 #define RTL8723AS_SUPPORT				0
 #define RTL8723AE_SUPPORT				0
 #define RTL8723A_SUPPORT				(RTL8723AU_SUPPORT|RTL8723AS_SUPPORT|RTL8723AE_SUPPORT)
-
 #define RTL8723_FPGA_VERIFICATION		0
 
-#define RTL8188EE_SUPPORT				0
-#define RTL8188EU_SUPPORT				0
-#define RTL8188ES_SUPPORT				0
-#define RTL8188E_SUPPORT				(RTL8188EE_SUPPORT|RTL8188EU_SUPPORT|RTL8188ES_SUPPORT)
-
-#define RTL8812E_SUPPORT				0
+#define RTL8188E_SUPPORT				0
 #ifdef CONFIG_RTL8812A
-#define RTL8812AU_SUPPORT				1
+#define RTL8812A_SUPPORT				1
 #else
-#define RTL8812AU_SUPPORT				0
+#define RTL8812A_SUPPORT				0
 #endif
-#define RTL8812A_SUPPORT				(RTL8812E_SUPPORT|RTL8812AU_SUPPORT)
-
-
 #ifdef CONFIG_RTL8821A
 #define RTL8821A_SUPPORT				1
 #else
 #define RTL8821A_SUPPORT				0
 #endif
-
 #define RTL8723B_SUPPORT				0
-
 #define RTL8192E_SUPPORT				0
-
 #define RTL8813A_SUPPORT				0
 
-#define RATE_ADAPTIVE_SUPPORT 		0
+#define RATE_ADAPTIVE_SUPPORT 			0
 #define POWER_TRAINING_ACTIVE			0
 
 #ifdef CONFIG_USB_TX_AGGREGATION

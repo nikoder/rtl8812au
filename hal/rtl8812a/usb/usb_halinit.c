@@ -206,8 +206,8 @@ _InitBurstPktLen(IN PADAPTER Adapter)
 			provalue = rtw_read8(Adapter, REG_RXDMA_PRO_8812);
 			rtw_write8(Adapter, REG_RXDMA_PRO_8812, ((provalue|BIT(5))&(~BIT(4)))); //set burst pkt len=64B
 		}
-
-		//rtw_write16(Adapter, REG_RXDMA_AGG_PG_TH,0x2005); //dmc agg th 20K
+		//the setting to reduce RX FIFO overflow on USB2.0 and increase rx throughput
+		rtw_write16(Adapter, REG_RXDMA_AGG_PG_TH,0x2005); //dmc agg th 20K
 		
 		//rtw_write8(Adapter, 0x10c, 0xb4);
 		//hal_UphyUpdate8812AU(Adapter);
@@ -2723,9 +2723,6 @@ _func_enter_;
 					do{
 						if((rtw_read32(Adapter, REG_RXPKT_NUM)&RXDMA_IDLE)) {
 							DBG_871X_LEVEL(_drv_always_, "RX_DMA_IDLE is true\n");
-							if (Adapter->intf_stop)
-								Adapter->intf_stop(Adapter);
-
 							break;
 						} else {
 							// If RX_DMA is not idle, receive one pkt from DMA
@@ -2752,6 +2749,9 @@ _func_enter_;
 					pwrctl->wowlan_wake_reason = rtw_read8(Adapter, REG_MCUTST_WOWLAN);
 					DBG_871X_LEVEL(_drv_always_, "wowlan_wake_reason: 0x%02x\n",
 										pwrctl->wowlan_wake_reason);
+
+					if (Adapter->intf_stop)
+						Adapter->intf_stop(Adapter);
 
 					// Invoid SE0 reset signal during suspending
 					rtw_write8(Adapter, REG_RSV_CTRL, 0x20);
@@ -3096,25 +3096,11 @@ void rtl8812au_set_hal_ops(_adapter * padapter)
 
 _func_enter_;
 
-#ifdef CONFIG_CONCURRENT_MODE
-	if(padapter->isprimary)
-#endif //CONFIG_CONCURRENT_MODE
-	{
-		padapter->HalData = rtw_zvmalloc(sizeof(HAL_DATA_TYPE));
-		if(padapter->HalData == NULL){
-			DBG_8192C("cant not alloc memory for HAL DATA \n");
-		}
-	}
-	//_rtw_memset(padapter->HalData, 0, sizeof(HAL_DATA_TYPE));
-	padapter->hal_data_sz = sizeof(HAL_DATA_TYPE);
-
 	pHalFunc->hal_power_on = _InitPowerOn_8812AU;
 	pHalFunc->hal_power_off = hal_poweroff_8812au;
 	
 	pHalFunc->hal_init = &rtl8812au_hal_init;
 	pHalFunc->hal_deinit = &rtl8812au_hal_deinit;
-
-	//pHalFunc->free_hal_data = &rtl8192c_free_hal_data;
 
 	pHalFunc->inirp_init = &rtl8812au_inirp_init;
 	pHalFunc->inirp_deinit = &rtl8812au_inirp_deinit;

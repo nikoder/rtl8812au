@@ -132,7 +132,7 @@ void rtw_odm_dbg_level_msg(void *sel, _adapter *adapter)
 	int i;
 
 	rtw_hal_get_def_var(adapter, HW_DEF_ODM_DBG_LEVEL, &dbg_level);
-	DBG_871X_SEL_NL(sel, "odm.DebugDebugLevel = %u\n", dbg_level);
+	DBG_871X_SEL_NL(sel, "odm.DebugLevel = %u\n", dbg_level);
 	for (i=0;i<RTW_ODM_DBG_LEVEL_NUM;i++) {
 		if (odm_dbg_level_str[i])
 			DBG_871X_SEL_NL(sel, "%u %s\n", i, odm_dbg_level_str[i]);

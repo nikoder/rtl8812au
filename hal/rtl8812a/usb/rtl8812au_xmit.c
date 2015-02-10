@@ -156,7 +156,7 @@ static s32 update_txdesc(struct xmit_frame *pxmitframe, u8 *pmem, s32 sz ,u8 bag
 				SET_TX_DESC_AGG_ENABLE_8812(ptxdesc, 1);
 				SET_TX_DESC_MAX_AGG_NUM_8812(ptxdesc, 0x1f);
 				// Set A-MPDU aggregation.
-				SET_TX_DESC_AMPDU_DENSITY_8812(ptxdesc, pHalData->AMPDUDensity);
+				SET_TX_DESC_AMPDU_DENSITY_8812(ptxdesc, pattrib->ampdu_spacing);
 			} else {
 				SET_TX_DESC_AGG_BREAK_8812(ptxdesc, 1);
 			}

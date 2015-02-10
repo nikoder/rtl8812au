@@ -251,7 +251,7 @@ ODM_TxPwrTrackSetPwr8812A(
 
 				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_A Over BBSwing Limit , PwrTrackingLimit = %d , Remnant TxAGC Value = %d \n", PwrTrackingLimit, pDM_Odm->Remnant_OFDMSwingIdx[RFPath]));
 			}
-			else if (Final_OFDM_Swing_Index < 0)
+			else if (Final_OFDM_Swing_Index <= 0)
 			{
 				pDM_Odm->Remnant_CCKSwingIdx= Final_CCK_Swing_Index;            // CCK Follow the same compensate value as Path A
 				pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = Final_OFDM_Swing_Index;     
@@ -298,7 +298,7 @@ ODM_TxPwrTrackSetPwr8812A(
 
 				ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("******Path_B Over BBSwing Limit , PwrTrackingLimit = %d , Remnant TxAGC Value = %d \n", PwrTrackingLimit, pDM_Odm->Remnant_OFDMSwingIdx[RFPath]));
 			}
-			else if (Final_OFDM_Swing_Index < 0)
+			else if (Final_OFDM_Swing_Index <= 0)
 			{
 				pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = Final_OFDM_Swing_Index;     
 

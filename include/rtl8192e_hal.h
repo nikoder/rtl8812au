@@ -143,9 +143,10 @@ typedef struct _RT_FIRMWARE_8192E {
 
 // For Normal Chip Setting
 // (HPQ + LPQ + NPQ + PUBQ) shall be TX_TOTAL_PAGE_NUMBER_92C
-#define NORMAL_PAGE_NUM_LPQ_8192E			0x0C
-#define NORMAL_PAGE_NUM_HPQ_8192E			0x08
-#define NORMAL_PAGE_NUM_NPQ_8192E			0x00
+
+#define NORMAL_PAGE_NUM_HPQ_8192E			0x10
+#define NORMAL_PAGE_NUM_LPQ_8192E			0x10
+#define NORMAL_PAGE_NUM_NPQ_8192E			0x10
 #define NORMAL_PAGE_NUM_EPQ_8192E			0x00
 
 
@@ -158,6 +159,11 @@ typedef struct _RT_FIRMWARE_8192E {
 //-------------------------------------------------------------------------
 //	Chip specific
 //-------------------------------------------------------------------------
+
+// pic buffer descriptor
+#define RTL8192EE_SEG_NUM			TX_BUFFER_SEG_NUM
+#define TX_DESC_NUM_92E			128
+#define RX_DESC_NUM_92E			128
 
 //-------------------------------------------------------------------------
 //	Channel Plan
@@ -280,5 +286,11 @@ void SetBcnCtrlReg(PADAPTER padapter, u8 SetBits, u8 ClearBits);
 
 void rtl8192e_start_thread(_adapter *padapter);
 void rtl8192e_stop_thread(_adapter *padapter);
+
+#ifdef CONFIG_PCI_HCI
+BOOLEAN	InterruptRecognized8192EE(PADAPTER Adapter);
+u16	get_txdesc_buf_addr(u16 ff_hwaddr);
+#endif
+
 #endif //__RTL8192E_HAL_H__
 

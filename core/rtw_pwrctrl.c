@@ -2157,9 +2157,11 @@ _func_enter_;
 	#endif //CONFIG_HAS_EARLYSUSPEND || CONFIG_ANDROID_POWER
 
 #ifdef CONFIG_PNO_SUPPORT
+	pwrctrlpriv->pno_inited = _FALSE;
 	pwrctrlpriv->pnlo_info = NULL;
 	pwrctrlpriv->pscan_info = NULL;
 	pwrctrlpriv->pno_ssid_list = NULL;
+	pwrctrlpriv->pno_in_resume = _TRUE;
 #endif
 
 _func_exit_;
@@ -2436,6 +2438,7 @@ int _rtw_pwr_wakeup(_adapter *padapter, u32 ips_deffer_ms, const char *caller)
 
 	//System suspend is not allowed to wakeup
 	if((pwrpriv->bInternalAutoSuspend == _FALSE) && (_TRUE == pwrpriv->bInSuspend )){
+		pwrpriv->bInSuspend = _FALSE;
 		ret = _FAIL;
 		goto exit;
 	}

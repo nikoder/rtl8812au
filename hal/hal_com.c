@@ -23,6 +23,36 @@
 
 #include "../hal/OUTSRC/odm_precomp.h"
 
+u8 rtw_hal_data_init(_adapter *padapter)
+{
+	if(is_primary_adapter(padapter))	//if(padapter->isprimary)
+	{
+		padapter->hal_data_sz = sizeof(HAL_DATA_TYPE);
+		padapter->HalData = rtw_zvmalloc(padapter->hal_data_sz);
+		if(padapter->HalData == NULL){
+			DBG_8192C("cant not alloc memory for HAL DATA \n");
+			return _FAIL;
+		}
+	}	
+	return _SUCCESS;
+}
+
+void rtw_hal_data_deinit(_adapter *padapter)
+{	
+	if(is_primary_adapter(padapter))	//if(padapter->isprimary)
+	{
+		if (padapter->HalData) 
+		{
+			#ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
+			phy_free_filebuf(padapter);				
+			#endif		
+			rtw_vmfree(padapter->HalData, padapter->hal_data_sz);
+			padapter->HalData = NULL;
+			padapter->hal_data_sz = 0;
+		}	
+	}
+}
+
 
 void dump_chip_info(HAL_VERSION	ChipVersion)
 {
@@ -436,7 +466,7 @@ _TwoOutPipeMapping(
 		
 		//	BK, 	BE, 	VI, 	VO, 	BCN,	CMD,MGT,HIGH,HCCA 
 		//{  0, 	1, 	0, 	1, 	0, 	0, 	0, 	0, 		0	};
-		//0:H, 1:N 
+		//0:ep_0 num, 1:ep_1 num 
 		
 		pdvobjpriv->Queue2Pipe[0] = pdvobjpriv->RtOutPipe[1];//VO
 		pdvobjpriv->Queue2Pipe[1] = pdvobjpriv->RtOutPipe[0];//VI
@@ -454,7 +484,7 @@ _TwoOutPipeMapping(
 		
 		//BK, 	BE, 	VI, 	VO, 	BCN,	CMD,MGT,HIGH,HCCA 
 		//{  1, 	1, 	0, 	0, 	0, 	0, 	0, 	0, 		0	};			
-		//0:H, 1:N 
+		//0:ep_0 num, 1:ep_1 num
 		
 		pdvobjpriv->Queue2Pipe[0] = pdvobjpriv->RtOutPipe[0];//VO
 		pdvobjpriv->Queue2Pipe[1] = pdvobjpriv->RtOutPipe[0];//VI
@@ -1018,6 +1048,24 @@ _func_enter_;
 	switch (variable) {
 	case HW_VAR_PORT_SWITCH:
 		hw_var_port_switch(adapter);
+		break;
+	case HW_VAR_INIT_RTS_RATE:
+	{
+		u16 brate_cfg = *((u16*)val);
+		u8 rate_index = 0;
+		HAL_VERSION *hal_ver = &hal_data->VersionID;
+
+		if (IS_81XXC(*hal_ver) ||IS_92D(*hal_ver) || IS_8723_SERIES(*hal_ver) || IS_8188E(*hal_ver)) {
+
+			while (brate_cfg > 0x1) {
+				brate_cfg = (brate_cfg >> 1);
+				rate_index++;
+			}
+			rtw_write8(adapter, REG_INIRTS_RATE_SEL, rate_index);
+		} else {
+			rtw_warn_on(1);
+		}
+	}
 		break;
 	case HW_VAR_DM_FLAG:
 		odm->SupportAbility = *((u32*)val);

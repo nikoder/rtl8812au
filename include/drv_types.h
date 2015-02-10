@@ -34,7 +34,10 @@
 #include <wlan_bssdef.h>
 #include <wifi.h>
 #include <ieee80211.h>
-
+#ifdef CONFIG_ARP_KEEP_ALIVE
+#include <net/neighbour.h>
+#include <net/arp.h>
+#endif
 
 #ifdef PLATFORM_OS_XP
 #include <drv_types_xp.h>
@@ -56,8 +59,6 @@ enum _NIC_VERSION {
 	RTL8716_NIC
 
 };
-
-#define CONFIG_SUSPEND_REFINE	
 
 typedef struct _ADAPTER _adapter, ADAPTER,*PADAPTER;
 
@@ -869,7 +870,12 @@ struct _ADAPTER{
 	PLOOPBACKDATA ploopback;
 #endif
 
+	//for debug purpose
 	u8 fix_rate;
+	u8 driver_vcs_en; //Enable=1, Disable=0 driver control vrtl_carrier_sense for tx
+	u8 driver_vcs_type;//force 0:disable VCS, 1:RTS-CTS, 2:CTS-to-self when vcs_en=1.
+	u8 driver_ampdu_spacing;//driver control AMPDU Density for peer sta's rx
+	u8 driver_rx_ampdu_factor;//0xff: disable drv ctrl, 0:8k, 1:16k, 2:32k, 3:64k;
 
 	unsigned char     in_cta_test;
 };
@@ -927,6 +933,11 @@ int rtw_dev_pno_set(struct net_device *net, pno_ssid_t* ssid, int num,
 void rtw_dev_pno_debug(struct net_device *net);
 #endif //CONFIG_PNO_SET_DEBUG
 #endif //CONFIG_PNO_SUPPORT
+
+#ifdef CONFIG_WOWLAN
+int rtw_suspend_wow(_adapter *padapter);
+int rtw_resume_process_wow(_adapter *padapter);
+#endif
 
 __inline static u8 *myid(struct eeprom_priv *peepriv)
 {

@@ -3382,6 +3382,13 @@ wa_halbtc8723a2ant_MonitorC2h(
 // extern function start with EXhalbtc8723a2ant_
 //============================================================
 VOID
+EXhalbtc8723a2ant_PowerOnSetting(
+	IN	PBTC_COEXIST		pBtCoexist
+	)
+{
+}
+
+VOID
 EXhalbtc8723a2ant_InitHwConfig(
 	IN	PBTC_COEXIST		pBtCoexist,
 	IN	BOOLEAN				bWifiOnly

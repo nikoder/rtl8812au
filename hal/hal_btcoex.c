@@ -969,8 +969,8 @@ void halbtcoutsrc_DisplayCoexStatistics(PBTC_COEXIST pBtCoexist)
 	CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %d/ %d", "Periodical/ DbgCtrl", \
 		pBtCoexist->statistics.cntPeriodical, pBtCoexist->statistics.cntDbgCtrl);
 	CL_PRINTF(cliBuf);
-	CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %d/ %d", "InitHw/InitCoexDm/", \
-		pBtCoexist->statistics.cntInitHwConfig, pBtCoexist->statistics.cntInitCoexDm);
+	CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %d/ %d/ %d", "PowerOn/InitHw/InitCoexDm/", \
+		pBtCoexist->statistics.cntPowerOn, pBtCoexist->statistics.cntInitHwConfig, pBtCoexist->statistics.cntInitCoexDm);
 	CL_PRINTF(cliBuf);
 	CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %d/ %d/ %d/ %d/ %d", "Ips/Lps/Scan/Connect/Mstatus", \
 		pBtCoexist->statistics.cntIpsNotify, pBtCoexist->statistics.cntLpsNotify,
@@ -1920,6 +1920,32 @@ void EXhalbtcoutsrc_BtInfoNotify(PBTC_COEXIST pBtCoexist, u8 *tmpBuf, u8 length)
 //	halbtcoutsrc_NormalLowPower(pBtCoexist);
 }
 
+VOID
+EXhalbtcoutsrc_RfStatusNotify(
+	IN	PBTC_COEXIST		pBtCoexist,
+	IN	u1Byte 				type
+	)
+{
+	if(!halbtcoutsrc_IsBtCoexistAvailable(pBtCoexist))
+		return;
+	pBtCoexist->statistics.cntRfStatusNotify++;
+	
+	if(IS_HARDWARE_TYPE_8821(pBtCoexist->Adapter))
+	{
+	}
+	else if(IS_HARDWARE_TYPE_8723B(pBtCoexist->Adapter))
+	{
+		if(pBtCoexist->boardInfo.btdmAntNum == 1)
+			EXhalbtc8723b1ant_RfStatusNotify(pBtCoexist, type);
+	}	
+	else if(IS_HARDWARE_TYPE_8192E(pBtCoexist->Adapter))
+	{
+	}
+	else if(IS_HARDWARE_TYPE_8812(pBtCoexist->Adapter))
+	{
+	}
+}
+
 void EXhalbtcoutsrc_StackOperationNotify(PBTC_COEXIST pBtCoexist, u8 type)
 {
 #if 0
@@ -2335,6 +2361,17 @@ void EXhalbtcoutsrc_SetAntNum(u8 type, u8 antNum, BOOLEAN antInverse)
 	{
 		GLBtCoexist.boardInfo.btdmAntPos = BTC_ANTENNA_AT_AUX_PORT;
 	}
+}
+
+//
+// Currently used by 8723b only, S0 or S1
+//
+VOID
+EXhalbtcoutsrc_SetSingleAntPath(
+	IN	u1Byte		singleAntPath
+	)
+{
+	GLBtCoexist.boardInfo.singleAntPath = singleAntPath;
 }
 
 void EXhalbtcoutsrc_DisplayBtCoexInfo(PBTC_COEXIST pBtCoexist)

@@ -627,6 +627,12 @@ int rtw_cfg80211_check_bss(_adapter *padapter)
 			pnetwork->Ssid.SsidLength,
 			WLAN_CAPABILITY_ESS, WLAN_CAPABILITY_ESS);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+	cfg80211_put_bss(padapter->rtw_wdev->wiphy, bss);
+#else
+	cfg80211_put_bss(bss);
+#endif
+
 	return 	(bss!=NULL);
 }
 
@@ -1541,6 +1547,12 @@ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev,
 		ret = rtw_cfg80211_ap_set_encryption(ndev, param, param_len);
 #endif
 	}
+        else if(check_fwstate(pmlmepriv, WIFI_ADHOC_STATE) == _TRUE
+                || check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE) == _TRUE)
+        {
+                //DBG_8192C("@@@@@@@@@@ fw_state=0x%x, iftype=%d\n", pmlmepriv->fw_state, rtw_wdev->iftype);
+                ret =  rtw_cfg80211_set_encryption(ndev, param, param_len);
+        }
 	else
 	{
 		DBG_8192C("error! fw_state=0x%x, iftype=%d\n", pmlmepriv->fw_state, rtw_wdev->iftype);
@@ -2296,18 +2308,15 @@ if (padapter->registrypriv.mp_mode == 1)
 #endif /* CONFIG_CONCURRENT_MODE */
 
 #ifdef CONFIG_P2P
-	if( pwdinfo->driver_interface == DRIVER_CFG80211 )
+	if(!rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE) && !rtw_p2p_chk_state(pwdinfo, P2P_STATE_IDLE))
 	{
-		if(!rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE) && !rtw_p2p_chk_state(pwdinfo, P2P_STATE_IDLE))
-		{
-			rtw_p2p_set_state(pwdinfo, P2P_STATE_FIND_PHASE_SEARCH);
-			rtw_free_network_queue(padapter, _TRUE);
+		rtw_p2p_set_state(pwdinfo, P2P_STATE_FIND_PHASE_SEARCH);
+		rtw_free_network_queue(padapter, _TRUE);
 
-			if(social_channel == 0)
-				rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_NONE);
-			else
-				rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_SOCIAL_LAST);
-		}
+		if(social_channel == 0)
+			rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_NONE);
+		else
+			rtw_p2p_findphase_ex_set(pwdinfo, P2P_FINDPHASE_EX_SOCIAL_LAST);
 	}
 #endif //CONFIG_P2P
 
@@ -4021,7 +4030,7 @@ static int cfg80211_rtw_start_ap(struct wiphy *wiphy, struct net_device *ndev,
 		WLAN_BSSID_EX *pbss_network_ext = &adapter->mlmeextpriv.mlmext_info.network;
 
 		if(0)
-		DBG_871X(FUNC_ADPT_FMT" ssid:(%s,%d), from ie:(%s,%d)\n", FUNC_ADPT_ARG(adapter),
+		DBG_871X(FUNC_ADPT_FMT" ssid:(%s,%zu), from ie:(%s,%d)\n", FUNC_ADPT_ARG(adapter),
 			settings->ssid, settings->ssid_len,
 			pbss_network->Ssid.Ssid, pbss_network->Ssid.SsidLength);
 
@@ -5289,7 +5298,6 @@ static int cfg80211_rtw_tdls_oper(struct wiphy *wiphy,
 }
 #endif /* CONFIG_TDLS */
 
-
 #if defined(CONFIG_PNO_SUPPORT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
 static int cfg80211_rtw_sched_scan_start(struct wiphy *wiphy,
 		struct net_device *dev,
@@ -5308,7 +5316,7 @@ static int cfg80211_rtw_sched_scan_start(struct wiphy *wiphy,
 		check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE  ||
 		check_fwstate(pmlmepriv, _FW_UNDER_LINKING) == _TRUE) {
 		DBG_871X("%s: device is busy.\n", __func__);
-		return -EBUSY;
+		rtw_scan_abort(padapter);
 	}
 
 	if (request == NULL) {

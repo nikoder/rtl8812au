@@ -49,6 +49,9 @@ void rtw_hal_def_value_init(_adapter *padapter)
 }
 void	rtw_hal_free_data(_adapter *padapter)
 {
+	//free HAL Data 	
+	rtw_hal_data_deinit(padapter);
+	
 	if (is_primary_adapter(padapter))
 		if(padapter->HalFunc.free_hal_data)
 			padapter->HalFunc.free_hal_data(padapter);
