@@ -156,7 +156,7 @@ static s32 update_txdesc(struct xmit_frame *pxmitframe, u8 *pmem, s32 sz ,u8 bag
 				SET_TX_DESC_AGG_ENABLE_8812(ptxdesc, 1);
 				SET_TX_DESC_MAX_AGG_NUM_8812(ptxdesc, 0x1f);
 				// Set A-MPDU aggregation.
-				SET_TX_DESC_AMPDU_DENSITY_8812(ptxdesc, pHalData->AMPDUDensity);
+				SET_TX_DESC_AMPDU_DENSITY_8812(ptxdesc, pattrib->ampdu_spacing);
 			} else {
 				SET_TX_DESC_AGG_BREAK_8812(ptxdesc, 1);
 			}
@@ -574,6 +574,8 @@ s32 rtl8812au_xmitframe_complete(_adapter *padapter, struct xmit_priv *pxmitpriv
 	bulkPtr = bulkSize;
 	if (pbuf < bulkPtr)
 		descCount++;
+		if (descCount == pHalData->UsbTxAggDescNum)
+			goto agg_end;
 	else {
 		descCount = 0;
 		bulkPtr = ((pbuf / bulkSize) + 1) * bulkSize; // round to next bulkSize
@@ -621,6 +623,9 @@ s32 rtl8812au_xmitframe_complete(_adapter *padapter, struct xmit_priv *pxmitpriv
 		pxmitframe = LIST_CONTAINOR(xmitframe_plist, struct xmit_frame, list);
 		xmitframe_plist = get_next(xmitframe_plist);
 
+		if(_FAIL == rtw_hal_busagg_qsel_check(padapter,pfirstframe->attrib.qsel,pxmitframe->attrib.qsel))
+			break;
+		
              pxmitframe->agg_num = 0; // not first frame of aggregation
 		#ifdef CONFIG_TX_EARLY_MODE
 		pxmitframe->pkt_offset = 1;// not first frame of aggregation,reserve offset for EM Info
@@ -710,6 +715,7 @@ s32 rtl8812au_xmitframe_complete(_adapter *padapter, struct xmit_priv *pxmitpriv
 		rtw_list_delete(&ptxservq->tx_pending);
 
 	_exit_critical_bh(&pxmitpriv->lock, &irqL);
+agg_end:
 #ifdef CONFIG_80211N_HT
 	if ((pfirstframe->attrib.ether_type != 0x0806) &&
 	    (pfirstframe->attrib.ether_type != 0x888e) &&

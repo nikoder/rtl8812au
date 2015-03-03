@@ -20,16 +20,14 @@
 //***** temporarily flag *******
 #define CONFIG_SINGLE_IMG
 //#define CONFIG_DISABLE_ODM
-//for FPGA VERIFICATION config
-#define RTL8188E_FPGA_TRUE_PHY_VERIFICATION 0
 
 //***** temporarily flag *******
 /*
  * Public  General Config
  */
 #define AUTOCONF_INCLUDED
-#define RTL871X_MODULE_NAME "8821AU"
-#define DRV_NAME "rtl8821au"
+#define RTL871X_MODULE_NAME "8812AU"
+#define DRV_NAME "rtl8812au"
 
 
 #define CONFIG_USB_HCI	1
@@ -51,7 +49,6 @@
 /*
  * Internal  General Config
  */
-//#define CONFIG_PWRCTRL
 //#define CONFIG_H2CLBK
 
 #define CONFIG_EMBEDDED_FWIMG	1
@@ -85,7 +82,7 @@
 //#ifndef CONFIG_MP_INCLUDED
 	#define CONFIG_IPS	1
 	#ifdef CONFIG_IPS
-	//#define CONFIG_IPS_LEVEL_2	1 //enable this to set default IPS mode to IPS_LEVEL_2
+	//#define CONFIG_IPS_LEVEL_2	1 //enable this to set default IPS mode to IPS_LEVEL_2	
 	#define CONFIG_IPS_CHECK_IN_WD // Do IPS Check in WatchDog.	
 	#endif
 	//#define SUPPORT_HW_RFOFF_DETECTED	1
@@ -114,10 +111,9 @@
 		#define CONFIG_RUNTIME_PORT_SWITCH
 		//#define DBG_RUNTIME_PORT_SWITCH
 		#define CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
-		#ifdef CONFIG_RTL8812A
-			#define CONFIG_TSF_RESET_OFFLOAD 1		// For 2 PORT TSF SYNC.
-		#endif
-		//#define CONFIG_MULTI_VIR_IFACES //besides primary&secondary interfaces, extend to support more interfaces
+		//#ifdef CONFIG_RTL8812A
+		//	#define CONFIG_TSF_RESET_OFFLOAD 1		// For 2 PORT TSF SYNC.
+		//#endif
 	#endif
 
 	//#define CONFIG_IOL
@@ -142,9 +138,6 @@
 	#endif			
 	#define CONFIG_FIND_BEST_CHANNEL	1
 	//#define CONFIG_NO_WIRELESS_HANDLERS	1
-
-	//#define	CONFIG_AUTO_AP_MODE
-
 #endif
 
 #define CONFIG_P2P	1
@@ -203,13 +196,11 @@
 #define CONFIG_LONG_DELAY_ISSUE
 #define CONFIG_NEW_SIGNAL_STAT_PROCESS
 //#define CONFIG_SIGNAL_DISPLAY_DBM //display RX signal with dbm
+#ifdef CONFIG_SIGNAL_DISPLAY_DBM
+//#define CONFIG_BACKGROUND_NOISE_MONITOR
+#endif
 #define RTW_NOTCH_FILTER 0 /* 0:Disable, 1:Enable, */
 #define CONFIG_DEAUTH_BEFORE_CONNECT
-
-#define CONFIG_BR_EXT	1	// Enable NAT2.5 support for STA mode interface with a L2 Bridge
-#ifdef CONFIG_BR_EXT
-#define CONFIG_BR_EXT_BRNAME	"br0"
-#endif	// CONFIG_BR_EXT
 
 #define CONFIG_TX_MCAST2UNI	1	// Support IP multicast->unicast
 //#define CONFIG_CHECK_AC_LIFETIME 1	// Check packet lifetime of 4 ACs.
@@ -233,11 +224,18 @@
  */
 //#define CONFIG_USE_USB_BUFFER_ALLOC_TX 1	// Trade-off: For TX path, improve stability on some platforms, but may cause performance degrade on other platforms.
 //#define CONFIG_USE_USB_BUFFER_ALLOC_RX 1	// For RX path
-
 #ifdef CONFIG_USE_USB_BUFFER_ALLOC_RX
 #undef CONFIG_PREALLOC_RECV_SKB
+#else
+	#ifdef CONFIG_PREALLOC_RECV_SKB
+//		#define CONFIG_FIX_NR_BULKIN_BUFFER		// only use USB prealloc_recv_buffer, no use alloc_skb()
+	#endif
 #endif
 
+#ifdef CONFIG_WOWLAN
+// 1 spatial stream for lower power mode when entering suspend
+	//#define CONFIG_LOWPR_1SS 
+#endif
 
 /* 
  * USB VENDOR REQ BUFFER ALLOCATION METHOD
@@ -251,11 +249,14 @@
 
 //#define CONFIG_USB_SUPPORT_ASYNC_VDN_REQ 1
 
+#define WAKEUP_GPIO_IDX	1	//WIFI Chip Side
 
 /*
  * HAL  Related Config
  */
 #define RTL8812A_RX_PACKET_INCLUDE_CRC	0
+
+#define CONFIG_RX_PACKET_APPEND_FCS
 
 //#define CONFIG_ONLY_ONE_OUT_EP_TO_LOW	0
 
@@ -297,10 +298,6 @@
 	
 #endif//CONFIG_PLATFORM_MN10300
 
-#ifdef CONFIG_PLATFORM_TI_DM365
-#define CONFIG_USE_USB_BUFFER_ALLOC_RX 
-#endif
-
 
 #if defined(CONFIG_PLATFORM_ACTIONS_ATM702X)
 	#ifdef CONFIG_USB_TX_AGGREGATION	
@@ -333,36 +330,25 @@
 #define RTL8723AS_SUPPORT				0
 #define RTL8723AE_SUPPORT				0
 #define RTL8723A_SUPPORT				(RTL8723AU_SUPPORT|RTL8723AS_SUPPORT|RTL8723AE_SUPPORT)
-
 #define RTL8723_FPGA_VERIFICATION		0
 
-#define RTL8188EE_SUPPORT				0
-#define RTL8188EU_SUPPORT				0
-#define RTL8188ES_SUPPORT				0
-#define RTL8188E_SUPPORT				(RTL8188EE_SUPPORT|RTL8188EU_SUPPORT|RTL8188ES_SUPPORT)
-
-#define RTL8812E_SUPPORT				0
+#define RTL8188E_SUPPORT				0
 #ifdef CONFIG_RTL8812A
-#define RTL8812AU_SUPPORT				1
+#define RTL8812A_SUPPORT				1
 #else
-#define RTL8812AU_SUPPORT				0
+#define RTL8812A_SUPPORT				0
 #endif
-#define RTL8812A_SUPPORT				(RTL8812E_SUPPORT|RTL8812AU_SUPPORT)
-
-
 #ifdef CONFIG_RTL8821A
 #define RTL8821A_SUPPORT				1
 #else
 #define RTL8821A_SUPPORT				0
 #endif
-
 #define RTL8723B_SUPPORT				0
-
 #define RTL8192E_SUPPORT				0
+#define RTL8814A_SUPPORT				0
+#define 	RTL8195A_SUPPORT				0
 
-#define RTL8813A_SUPPORT				0
-
-#define RATE_ADAPTIVE_SUPPORT 		0
+#define RATE_ADAPTIVE_SUPPORT 			0
 #define POWER_TRAINING_ACTIVE			0
 
 #ifdef CONFIG_USB_TX_AGGREGATION

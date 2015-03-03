@@ -120,6 +120,11 @@ int rtw_ndev_notifier_register(void);
 void rtw_ndev_notifier_unregister(void);
 
 #include "../os_dep/linux/rtw_proc.h"
+
+#ifdef CONFIG_IOCTL_CFG80211
+#include "../os_dep/linux/ioctl_cfg80211.h"
+#endif //CONFIG_IOCTL_CFG80211
+
 #endif //PLATFORM_LINUX
 
 
@@ -128,11 +133,6 @@ extern int rtw_ioctl(struct ifnet * ifp, u_long cmd, caddr_t data);
 #endif
 
 void rtw_ips_dev_unload(_adapter *padapter);
-
-#ifdef CONFIG_RF_GAIN_OFFSET
-void rtw_bb_rf_gain_offset(_adapter *padapter);
-#endif //CONFIG_RF_GAIN_OFFSET
-
 
 #ifdef CONFIG_IPS
 int rtw_ips_pwr_up(_adapter *padapter);
@@ -155,11 +155,12 @@ void rtw_drv_free_vir_ifaces(struct dvobj_priv *dvobj);
 int rtw_drv_register_netdev(_adapter *padapter);
 void rtw_ndev_destructor(_nic_hdl ndev);
 
-#ifdef CONFIG_SUSPEND_REFINE
-int rtw_suspend_common(_adapter *padapter);
-int rtw_resume_common(_adapter *padapter);
+#ifdef CONFIG_ARP_KEEP_ALIVE
+int	rtw_gw_addr_query(_adapter *padapter);
 #endif
 
+int rtw_suspend_common(_adapter *padapter);
+int rtw_resume_common(_adapter *padapter);
 
 #endif	//_OSDEP_INTF_H_
 
