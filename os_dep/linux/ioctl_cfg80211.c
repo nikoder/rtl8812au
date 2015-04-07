@@ -4165,13 +4165,12 @@ static int	cfg80211_rtw_add_station(struct wiphy *wiphy, struct net_device *ndev
 }
 
 static int	cfg80211_rtw_del_station(struct wiphy *wiphy, struct net_device *ndev,
-			       struct station_del_parameters *params)
+			       u8 *mac)
 {
 	int ret=0;	
 	_irqL irqL;
 	_list	*phead, *plist;
 	u8 updated = _FALSE;
-	const u8 *mac = params->mac;
 	struct sta_info *psta = NULL;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
