@@ -1712,7 +1712,7 @@ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy,
 
 static int cfg80211_rtw_get_station(struct wiphy *wiphy,
 				    struct net_device *ndev,
-				    u8 *mac, struct station_info *sinfo)
+				    const u8 *mac, struct station_info *sinfo)
 {
 	int ret = 0;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
@@ -1752,16 +1752,16 @@ static int cfg80211_rtw_get_station(struct wiphy *wiphy,
 			goto exit;
 		}
 
-		sinfo->filled |= STATION_INFO_SIGNAL;
+		sinfo->filled |= BIT(NL80211_STA_INFO_SIGNAL);
 		sinfo->signal = translate_percentage_to_dbm(padapter->recvpriv.signal_strength);
 
-		sinfo->filled |= STATION_INFO_TX_BITRATE;
+		sinfo->filled |= BIT(NL80211_STA_INFO_TX_BITRATE);
 		sinfo->txrate.legacy = rtw_get_cur_max_rate(padapter);
 
-		sinfo->filled |= STATION_INFO_RX_PACKETS;
+		sinfo->filled |= BIT(NL80211_STA_INFO_RX_PACKETS);
 		sinfo->rx_packets = sta_rx_data_pkts(psta);
 
-		sinfo->filled |= STATION_INFO_TX_PACKETS;
+		sinfo->filled |= BIT(NL80211_STA_INFO_TX_PACKETS);
 		sinfo->tx_packets = psta->sta_stats.tx_pkts;
 
 	}
@@ -3483,7 +3483,6 @@ void rtw_cfg80211_indicate_sta_assoc(_adapter *padapter, u8 *pmgmt_frame, uint f
 			ie_offset = _REASOCREQ_IE_OFFSET_;
 	
 		sinfo.filled = 0;
-		sinfo.filled = STATION_INFO_ASSOC_REQ_IES;
 		sinfo.assoc_req_ies = pmgmt_frame + WLAN_HDR_A3_LEN + ie_offset;
 		sinfo.assoc_req_ies_len = frame_len - WLAN_HDR_A3_LEN - ie_offset;
 		cfg80211_new_sta(ndev, GetAddr2Ptr(pmgmt_frame), &sinfo, GFP_ATOMIC);
@@ -4158,7 +4157,7 @@ static int cfg80211_rtw_stop_ap(struct wiphy *wiphy, struct net_device *ndev)
 #endif //(LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0))
 
 static int	cfg80211_rtw_add_station(struct wiphy *wiphy, struct net_device *ndev,
-			       u8 *mac, struct station_parameters *params)
+			       const u8 *mac, struct station_parameters *params)
 {
 	DBG_871X(FUNC_NDEV_FMT"\n", FUNC_NDEV_ARG(ndev));
 	
@@ -4166,12 +4165,13 @@ static int	cfg80211_rtw_add_station(struct wiphy *wiphy, struct net_device *ndev
 }
 
 static int	cfg80211_rtw_del_station(struct wiphy *wiphy, struct net_device *ndev,
-			       u8 *mac)
+			       struct station_del_parameters *params)
 {
 	int ret=0;	
 	_irqL irqL;
 	_list	*phead, *plist;
 	u8 updated = _FALSE;
+	const u8 *mac = params->mac;
 	struct sta_info *psta = NULL;
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
@@ -4257,7 +4257,7 @@ static int	cfg80211_rtw_del_station(struct wiphy *wiphy, struct net_device *ndev
 }
 
 static int	cfg80211_rtw_change_station(struct wiphy *wiphy, struct net_device *ndev,
-				  u8 *mac, struct station_parameters *params)
+				  const u8 *mac, struct station_parameters *params)
 {
 	DBG_871X(FUNC_NDEV_FMT"\n", FUNC_NDEV_ARG(ndev));
 	
@@ -4266,7 +4266,8 @@ static int	cfg80211_rtw_change_station(struct wiphy *wiphy, struct net_device *n
 
 struct sta_info *rtw_sta_info_get_by_idx(const int idx, struct sta_priv *pstapriv)
 
-{
+{
+
 	_list	*phead, *plist;
 	struct sta_info *psta = NULL;
 	int i = 0;
@@ -4306,9 +4307,24 @@ static int	cfg80211_rtw_dump_station(struct wiphy *wiphy, struct net_device *nde
 	}
 	_rtw_memcpy(mac, psta->hwaddr, ETH_ALEN);
 	sinfo->filled = 0;
-	sinfo->filled |= STATION_INFO_SIGNAL;
+	sinfo->filled |= BIT(NL80211_STA_INFO_SIGNAL);
 	sinfo->signal = psta->rssi;
-	
+
+	sinfo->filled |= BIT(NL80211_STA_INFO_RX_BYTES64);
+	sinfo->rx_bytes = psta->sta_stats.rx_bytes;
+
+	sinfo->filled |= BIT(NL80211_STA_INFO_TX_BYTES64);
+	sinfo->tx_bytes = psta->sta_stats.tx_bytes;
+
+	sinfo->filled |= BIT(NL80211_STA_INFO_RX_PACKETS);
+	sinfo->rx_packets = sta_rx_pkts(psta);
+
+	sinfo->filled |= BIT(NL80211_STA_INFO_TX_PACKETS);
+	sinfo->tx_packets = psta->sta_stats.tx_pkts;
+
+	sinfo->filled |= BIT(NL80211_STA_INFO_TX_FAILED);
+	sinfo->tx_failed = psta->sta_stats.tx_drops;
+
 exit:
 	return ret;
 }
@@ -4346,6 +4362,76 @@ static int	cfg80211_rtw_set_channel(struct wiphy *wiphy
 	DBG_871X(FUNC_NDEV_FMT"\n", FUNC_NDEV_ARG(ndev));
 	#endif
 	
+	return 0;
+}
+
+static int	bwmode_to_nl80211_chan_width(u8 bwmode,
+					     enum nl80211_chan_width *width)
+{
+	enum nl80211_chan_width ret;
+
+	if (bwmode == CHANNEL_WIDTH_20)
+		ret = NL80211_CHAN_WIDTH_20;
+	else if (bwmode == CHANNEL_WIDTH_40)
+		ret = NL80211_CHAN_WIDTH_40;
+	else if (bwmode == CHANNEL_WIDTH_80)
+		ret = NL80211_CHAN_WIDTH_80;
+	else if (bwmode == CHANNEL_WIDTH_160)
+		ret = NL80211_CHAN_WIDTH_160;
+	else if (bwmode == CHANNEL_WIDTH_80_80)
+		ret = NL80211_CHAN_WIDTH_80P80;
+	else
+		return -ENOENT;
+
+	*width = ret;
+	return 0;
+}
+
+static int	cfg80211_rtw_get_channel(struct wiphy *wiphy,
+		struct wireless_dev *wdev,
+		struct cfg80211_chan_def *chandef)
+{
+	u8 channel, bwmode, choffset, center_ch;
+	int freq, ret;
+	struct ieee80211_channel *chan;
+	enum nl80211_chan_width width;
+	_adapter *adapter = (_adapter *)rtw_netdev_priv((wdev->netdev));
+
+	if (!adapter)
+		return -ENODEV;
+
+	channel = rtw_get_oper_ch(adapter);
+	if (channel == 0)
+		return -ENODEV;
+	if (channel < 30)
+		freq = ieee80211_channel_to_frequency(channel, NL80211_BAND_2GHZ);
+	else
+		freq = ieee80211_channel_to_frequency(channel, NL80211_BAND_5GHZ);
+	if (freq == 0)
+		return -ENOENT;
+
+	chan = ieee80211_get_channel(wiphy, freq);
+	if (!chan)
+		return -ENOENT;
+
+	bwmode = rtw_get_oper_bw(adapter);
+	ret = bwmode_to_nl80211_chan_width(bwmode, &width);
+	if (ret)
+		return -ENOENT;
+	choffset = rtw_get_oper_choffset(adapter);
+	center_ch = rtw_get_center_ch(channel, bwmode, choffset);
+	if (center_ch < 30)
+		freq = ieee80211_channel_to_frequency(center_ch, NL80211_BAND_2GHZ);
+	else
+		freq = ieee80211_channel_to_frequency(center_ch, NL80211_BAND_5GHZ);
+	if (freq == 0)
+		return -ENOENT;
+
+	chandef->chan = chan;
+	chandef->width = width;
+	chandef->center_freq1 = freq;
+	chandef->center_freq2 = 0;
+
 	return 0;
 }
 
@@ -6112,6 +6198,7 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
 	#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
 	.set_channel = cfg80211_rtw_set_channel,
 	#endif
+	.get_channel = cfg80211_rtw_get_channel,
 	//.auth = cfg80211_rtw_auth,
 	//.assoc = cfg80211_rtw_assoc,	
 #endif //CONFIG_AP_MODE
